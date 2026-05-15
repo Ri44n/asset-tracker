@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Asset Tracker</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: 500;
+        }
+        
+        input, select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        
+        input:focus, select:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+        
+        button {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 10px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.3s;
+        }
+        
+        .btn-scan {
+            background: #2196F3;
+            color: white;
+        }
+        
+        .btn-scan:hover {
+            background: #1976D2;
+        }
+        
+        .btn-submit {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .btn-submit:hover {
+            background: #45a049;
+        }
+        
+        .btn-export {
+            background: #FF9800;
+            color: white;
+        }
+        
+        .btn-export:hover {
+            background: #F57C00;
+        }
+        
+        #video-container {
+            display: none;
+            margin: 20px 0;
+            position: relative;
+            background: #000;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        
+        #video {
+            width: 100%;
+            display: block;
+        }
+        
+        .scan-line {
+            position: absolute;
+            width: 100%;
+            height: 2px;
+            background: #4CAF50;
+            box-shadow: 0 0 10px #4CAF50;
+            animation: scan 2s linear infinite;
+            display: none;
+        }
+        
+        @keyframes scan {
+            0% { top: 0; }
+            50% { top: 100%; }
+            100% { top: 0; }
+        }
+        
+        .asset-list {
+            margin-top: 30px;
+        }
+        
+        .asset-item {
+            background: #f9f9f9;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            border-left: 4px solid #4CAF50;
+        }
+        
+        .asset-item strong {
+            color: #333;
+        }
+        
+        .asset-item button {
+            width: auto;
+            padding: 5px 15px;
+            background: #f44336;
+            color: white;
+            margin-top: 10px;
+        }
+        
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            display: none;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            display: block;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            display: block;
+        }
+        
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            display: block;
+        }
+
+        .camera-select {
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📦 Asset Tracker</h1>
+        
+        <div id="status" class="status"></div>
+        
+        <form id="assetForm">
+            <div class="form-group">
+                <label for="userName">User Name</label>
+                <input type="text" id="userName" required placeholder="Enter user name">
+            </div>
+            
+            <div class="form-group">
+                <label for="deviceDesc">Device Description</label>
+                <input type="text" id="deviceDesc" required placeholder="e.g., Dell Laptop XPS 15">
+            </div>
+            
+            <div class="form-group">
+                <label for="serialNumber">Serial Number</label>
+                <input type="text" id="serialNumber" required placeholder="Enter or scan serial number">
+            </div>
+            
+            <div class="camera-select" id="cameraSelectDiv" style="display: none;">
+                <label for="cameraSelect">Select Camera</label>
+                <select id="cameraSelect"></select>
+            </div>
+            
+            <button type="button" class="btn-scan" id="scanBtn">📷 Scan Barcode/QR Code</button>
+            
+            <div id="video-container">
+                <video id="video" playsinline autoplay></video>
+                <div class="scan-line" id="scanLine"></div>
+            </div>
+            
+            <button type="submit" class="btn-submit">✅ Add Asset</button>
+        </form>
+        
+        <button class="btn-export" id="exportBtn">📥 Export to CSV</button>
+        
+        <div class="asset-list">
+            <h2>Captured Assets (<span id="assetCount">0</span>)</h2>
+            <div id="assetsList"></div>
+        </div>
+    </div>
+
+    <!-- Updated Barcode/QR Scanner Library -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    
+    <script>
+        // Asset storage
+        let assets = JSON.parse(localStorage.getItem('assets')) || [];
+        
+        // Scanner setup
+        let html5QrCode = null;
+        let scanning = false;
+        
+        // DOM elements
+        const form = document.getElementById('assetForm');
+        const scanBtn = document.getElementById('scanBtn');
+        const videoContainer = document.getElementById('video-container');
+        const scanLine = document.getElementById('scanLine');
+        const serialInput = document.getElementById('serialNumber');
+        const assetsList = document.getElementById('assetsList');
+        const status = document.getElementById('status');
+        const exportBtn = document.getElementById('exportBtn');
+        const cameraSelect = document.getElementById('cameraSelect');
+        const cameraSelectDiv = document.getElementById('cameraSelectDiv');
+        
+        // Initialize
+        displayAssets();
+        checkCameraSupport();
+        
+        // Check camera support
+        async function checkCameraSupport() {
+            try {
+                const devices = await Html5Qrcode.getCameras();
+                if (devices && devices.length > 0) {
+                    // Populate camera dropdown if multiple cameras
+                    if (devices.length > 1) {
+                        cameraSelectDiv.style.display = 'block';
+                        devices.forEach((device, index) => {
+                            const option = document.createElement('option');
+                            option.value = device.id;
+                            option.text = device.label || `Camera ${index + 1}`;
+                            cameraSelect.appendChild(option);
+                        });
+                    }
+                    showStatus('Camera ready! You can scan barcodes and QR codes.', 'info');
+                    setTimeout(() => { status.style.display = 'none'; }, 3000);
+                } else {
+                    showStatus('No camera found on this device', 'error');
+                    scanBtn.disabled = true;
+                }
+            } catch (err) {
+                console.error('Camera check error:', err);
+                showStatus('⚠️ Camera access requires HTTPS or localhost. See instructions below.', 'error');
+            }
+        }
+        
+        // Scan barcode/QR code
+        scanBtn.addEventListener('click', async () => {
+            if (!scanning) {
+                await startScanning();
+            } else {
+                stopScanning();
+            }
+        });
+        
+        async function startScanning() {
+            try {
+                videoContainer.style.display = 'block';
+                scanLine.style.display = 'block';
+                scanBtn.textContent = '⏹️ Stop Scanning';
+                scanning = true;
+                
+                html5QrCode = new Html5Qrcode("video-container");
+                
+                const selectedCamera = cameraSelect.value || { facingMode: "environment" };
+                
+                await html5QrCode.start(
+                    selectedCamera,
+                    {
+                        fps: 10,
+                        qrbox: { width: 250, height: 250 },
+                        // Support all formats: QR codes AND barcodes
+                        formatsToSupport: [
+                            Html5QrcodeSupportedFormats.QR_CODE,
+                            Html5QrcodeSupportedFormats.CODE_128,
+                            Html5QrcodeSupportedFormats.CODE_39,
+                            Html5QrcodeSupportedFormats.CODE_93,
+                            Html5QrcodeSupportedFormats.EAN_13,
+                            Html5QrcodeSupportedFormats.EAN_8,
+                            Html5QrcodeSupportedFormats.UPC_A,
+                            Html5QrcodeSupportedFormats.UPC_E,
+                            Html5QrcodeSupportedFormats.ITF,
+                            Html5QrcodeSupportedFormats.CODABAR
+                        ]
+                    },
+                    (decodedText, decodedResult) => {
+                        // Success callback
+                        serialInput.value = decodedText;
+                        showStatus(`✅ Scanned: ${decodedText}`, 'success');
+                        stopScanning();
+                        
+                        // Vibrate on success (if supported)
+                        if (navigator.vibrate) {
+                            navigator.vibrate(200);
+                        }
+                    },
+                    (errorMessage) => {
+                        // Error callback (scanning in progress)
+                        // We don't show these errors as they're normal during scanning
+                    }
+                );
+                
+            } catch (err) {
+                console.error('Scanning error:', err);
+                let errorMsg = 'Failed to start camera. ';
+                
+                if (err.name === 'NotAllowedError') {
+                    errorMsg += 'Please allow camera access in your browser settings.';
+                } else if (err.name === 'NotFoundError') {
+                    errorMsg += 'No camera found.';
+                } else if (err.name === 'NotSupportedError') {
+                    errorMsg += 'Camera requires HTTPS. See instructions below.';
+                } else {
+                    errorMsg += err.message || 'Unknown error.';
+                }
+                
+                showStatus(errorMsg, 'error');
+                stopScanning();
+            }
+        }
+        
+        async function stopScanning() {
+            if (html5QrCode && scanning) {
+                try {
+                    await html5QrCode.stop();
+                    html5QrCode.clear();
+                } catch (err) {
+                    console.error('Stop error:', err);
+                }
+            }
+            videoContainer.style.display = 'none';
+            scanLine.style.display = 'none';
+            scanBtn.textContent = '📷 Scan Barcode/QR Code';
+            scanning = false;
+        }
+        
+        // Add asset
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            const asset = {
+                id: Date.now(),
+                userName: document.getElementById('userName').value,
+                deviceDesc: document.getElementById('deviceDesc').value,
+                serialNumber: serialInput.value,
+                date: new Date().toLocaleDateString(),
+                time: new Date().toLocaleTimeString()
+            };
+            
+            assets.push(asset);
+            localStorage.setItem('assets', JSON.stringify(assets));
+            
+            showStatus('✅ Asset added successfully!', 'success');
+            form.reset();
+            displayAssets();
+        });
+        
+        // Display assets
+        function displayAssets() {
+            document.getElementById('assetCount').textContent = assets.length;
+            
+            if (assets.length === 0) {
+                assetsList.innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">No assets captured yet</p>';
+                return;
+            }
+            
+            assetsList.innerHTML = assets.map(asset => `
+                <div class="asset-item">
+                    <strong>👤 ${asset.userName}</strong><br>
+                    📱 ${asset.deviceDesc}<br>
+                    🔢 Serial: ${asset.serialNumber}<br>
+                    📅 ${asset.date} ${asset.time || ''}
+                    <button onclick="deleteAsset(${asset.id})">Delete</button>
+                </div>
+            `).reverse().join('');
+        }
+        
+        // Delete asset
+        function deleteAsset(id) {
+            if (confirm('Delete this asset?')) {
+                assets = assets.filter(a => a.id !== id);
+                localStorage.setItem('assets', JSON.stringify(assets));
+                displayAssets();
+                showStatus('Asset deleted', 'success');
+            }
+        }
+        
+        // Export to CSV
+        exportBtn.addEventListener('click', () => {
+            if (assets.length === 0) {
+                showStatus('No assets to export', 'error');
+                return;
+            }
+            
+            const csv = [
+                ['User Name', 'Device Description', 'Serial Number', 'Date', 'Time'],
+                ...assets.map(a => [a.userName, a.deviceDesc, a.serialNumber, a.date, a.time || ''])
+            ].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+            
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `assets_${new Date().toISOString().split('T')}.csv`;
+            a.click();
+            
+            showStatus('📥 Exported to CSV!', 'success');
+        });
+        
+        // Show status message
+        function showStatus(message, type) {
+            status.textContent = message;
+            status.className = `status ${type}`;
+            setTimeout(() => {
+                if (type !== 'error') {
+                    status.style.display = 'none';
+                }
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
