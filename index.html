@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Asset Scanner</title>
+    <title>Asset Scanner - Barcode/QR</title>
     <style>
         * {
             margin: 0;
@@ -49,7 +49,7 @@
             opacity: 0.6;
             cursor: not-allowed;
         }
-        #video-container {
+        #scanner-container {
             position: relative;
             width: 100%;
             max-width: 500px;
@@ -58,8 +58,9 @@
             overflow: hidden;
             background: #000;
             display: none;
+            min-height: 300px;
         }
-        #video {
+        #scanner-container video {
             width: 100%;
             display: block;
         }
@@ -69,7 +70,7 @@
             left: 50%;
             transform: translate(-50%, -50%);
             width: 70%;
-            height: 70%;
+            height: 60%;
             border: 3px solid rgba(74, 108, 247, 0.8);
             border-radius: 12px;
             box-shadow: 0 0 0 9999px rgba(0,0,0,0.4);
@@ -86,6 +87,8 @@
             border-radius: 20px;
             font-size: 14px;
             display: none;
+            z-index: 10;
+            white-space: nowrap;
         }
         .controls {
             display: flex;
@@ -104,6 +107,28 @@
         }
         .controls button:active {
             background: #f0f0f0;
+        }
+        .barcode-type-selector {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin: 10px 0;
+            padding: 10px;
+            background: white;
+            border-radius: 10px;
+            border: 1px solid #e0e0e0;
+        }
+        .barcode-type-selector label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+        .barcode-type-selector input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
         }
         .list-header {
             display: flex;
@@ -219,6 +244,16 @@
             display: none;
             font-size: 14px;
         }
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 600;
+            background: #e0e7ff;
+            color: #4a6cf7;
+            margin-left: 5px;
+        }
         @media (max-width: 480px) {
             .asset-item {
                 flex-wrap: wrap;
@@ -236,6 +271,9 @@
                 font-size: 14px;
                 padding: 12px;
             }
+            .barcode-type-selector label {
+                font-size: 12px;
+            }
         }
     </style>
 </head>
@@ -245,15 +283,27 @@
 
     <button class="scan-btn" id="scanBtn">📷 Scan Barcode/QR</button>
 
-    <div id="video-container">
+    <div id="scanner-container">
         <video id="video" autoplay playsinline></video>
         <div id="scan-overlay"></div>
-        <div id="scan-status">Scanning...</div>
+        <div id="scan-status">🔍 Scanning...</div>
     </div>
 
     <div class="controls" id="controls" style="display:none;">
-        <button id="stopScanBtn">⏹ Stop Scanning</button>
-        <button id="manualInputBtn">✏️ Manual Entry</button>
+        <button id="stopScanBtn">⏹ Stop</button>
+        <button id="manualInputBtn">✏️ Manual</button>
+        <button id="switchCameraBtn">🔄 Switch Camera</button>
+    </div>
+
+    <div class="barcode-type-selector">
+        <strong style="font-size:13px;margin-right:8px;">📋 Barcode Types:</strong>
+        <label><input type="checkbox" value="code_128" checked> Code 128</label>
+        <label><input type="checkbox" value="code_39" checked> Code 39</label>
+        <label><input type="checkbox" value="ean" checked> EAN/UPC</label>
+        <label><input type="checkbox" value="code_93" checked> Code 93</label>
+        <label><input type="checkbox" value="codabar" checked> Codabar</label>
+        <label><input type="checkbox" value="qr" checked> QR</label>
+        <label><input type="checkbox" value="pdf417" checked> PDF417</label>
     </div>
 
     <div id="status-msg"></div>
@@ -266,26 +316,33 @@
     <div id="assetList"></div>
 
     <div class="action-buttons">
-        <button class="btn-email" id="emailBtn">📧 Email List</button>
-        <button class="btn-save" id="saveBtn">💾 Save to Device</button>
-        <button class="btn-export" id="exportBtn">📋 Copy CSV</button>
-        <button class="btn-clear" id="clearBtn">🗑 Clear All</button>
+        <button class="btn-email" id="emailBtn">📧 Email</button>
+        <button class="btn-save" id="saveBtn">💾 Save CSV</button>
+        <button class="btn-export" id="exportBtn">📋 Copy</button>
+        <button class="btn-clear" id="clearBtn">🗑 Clear</button>
     </div>
 
+    <!-- Load QuaggaJS for barcodes -->
+    <script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
+    <!-- Load jsQR as fallback for QR codes -->
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+    
     <script>
         // ===== STATE =====
         let assets = [];
-        let scanning = false;
-        let stream = null;
-        let animationId = null;
+        let isScanning = false;
+        let currentStream = null;
+        let useFrontCamera = false;
+        let lastScanned = '';
+        let scanCooldown = false;
 
         // DOM refs
         const video = document.getElementById('video');
-        const videoContainer = document.getElementById('video-container');
+        const scannerContainer = document.getElementById('scanner-container');
         const scanBtn = document.getElementById('scanBtn');
         const stopScanBtn = document.getElementById('stopScanBtn');
         const manualInputBtn = document.getElementById('manualInputBtn');
+        const switchCameraBtn = document.getElementById('switchCameraBtn');
         const controls = document.getElementById('controls');
         const assetList = document.getElementById('assetList');
         const count = document.getElementById('count');
@@ -323,9 +380,10 @@
 
             let html = '';
             assets.forEach((asset, index) => {
+                const typeBadge = asset.type ? `<span class="badge">${asset.type}</span>` : '';
                 html += `
                     <div class="asset-item">
-                        <span class="asset-sn">${escapeHtml(asset.sn)}</span>
+                        <span class="asset-sn">${escapeHtml(asset.sn)}${typeBadge}</span>
                         <input class="asset-note-input" type="text" 
                                placeholder="Add note..." 
                                value="${escapeHtml(asset.note || '')}"
@@ -362,7 +420,7 @@
         };
 
         // ===== ADD ASSET =====
-        function addAsset(sn) {
+        function addAsset(sn, type = 'unknown') {
             sn = sn.trim();
             if (!sn) return false;
 
@@ -372,40 +430,155 @@
                 return false;
             }
 
-            assets.push({ sn: sn, note: '' });
+            assets.push({ sn: sn, note: '', type: type, timestamp: new Date().toISOString() });
             renderAssets();
-            showStatus(`✅ Added: ${sn}`, 'success');
+            showStatus(`✅ Added: ${sn} ${type !== 'unknown' ? '('+type+')' : ''}`, 'success');
+            
+            // Vibrate on success
+            if (navigator.vibrate) navigator.vibrate(50);
             return true;
         }
 
-        // ===== SCANNING =====
-        async function startScanning() {
-            if (scanning) return;
+        // ===== GET SELECTED BARCODE TYPES =====
+        function getSelectedDecoders() {
+            const checkboxes = document.querySelectorAll('.barcode-type-selector input[type="checkbox"]:checked');
+            const types = [];
+            checkboxes.forEach(cb => types.push(cb.value));
+            return types;
+        }
 
-            try {
-                stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'environment', width: { ideal: 640 } }
-                });
-                video.srcObject = stream;
-                videoContainer.style.display = 'block';
+        // ===== SCANNING WITH QUAGGA (BARCODES) =====
+        function startQuaggaScan() {
+            const decoders = getSelectedDecoders();
+            if (decoders.length === 0) {
+                showStatus('⚠️ Please select at least one barcode type', 'warning');
+                return false;
+            }
+
+            // Build decoder config for Quagga
+            const decoderConfig = {
+                readers: decoders.map(type => {
+                    if (type === 'qr') return { format: 'qr_code', config: {} };
+                    if (type === 'pdf417') return { format: 'pdf417', config: {} };
+                    if (type === 'ean') return [
+                        { format: 'ean_8', config: {} },
+                        { format: 'ean_13', config: {} },
+                        { format: 'upc_e', config: {} },
+                        { format: 'upc_a', config: {} }
+                    ];
+                    return { format: type, config: {} };
+                }).flat()
+            };
+
+            // Initialize Quagga
+            Quagga.init({
+                inputStream: {
+                    name: "Live",
+                    type: "LiveStream",
+                    target: scannerContainer,
+                    constraints: {
+                        facingMode: useFrontCamera ? "user" : "environment",
+                        width: { ideal: 640 },
+                        height: { ideal: 480 }
+                    },
+                },
+                decoder: decoderConfig,
+                locate: true,
+                numOfWorkers: 4,
+                frequency: 5
+            }, function(err) {
+                if (err) {
+                    console.error('Quagga init error:', err);
+                    showStatus('❌ Failed to start scanner: ' + err.message, 'error');
+                    stopScanning();
+                    return;
+                }
+                
+                Quagga.start();
+                isScanning = true;
+                scannerContainer.style.display = 'block';
                 scanStatus.style.display = 'block';
                 controls.style.display = 'flex';
                 scanBtn.disabled = true;
                 scanBtn.textContent = '⏳ Scanning...';
-                scanning = true;
+                showStatus('🔍 Scanning for barcodes...', 'success');
 
-                // Start decode loop
-                decodeFrame();
+                // Handle detected codes
+                Quagga.onDetected(function(result) {
+                    if (scanCooldown) return;
+                    
+                    let code = result.codeResult.code;
+                    let format = result.codeResult.format || 'barcode';
+                    
+                    // Map format to readable name
+                    const formatMap = {
+                        'ean_13': 'EAN-13',
+                        'ean_8': 'EAN-8',
+                        'upc_a': 'UPC-A',
+                        'upc_e': 'UPC-E',
+                        'code_128': 'Code 128',
+                        'code_39': 'Code 39',
+                        'code_93': 'Code 93',
+                        'codabar': 'Codabar',
+                        'qr_code': 'QR Code',
+                        'pdf417': 'PDF417'
+                    };
+                    
+                    const displayFormat = formatMap[format] || format.toUpperCase();
+                    
+                    if (addAsset(code, displayFormat)) {
+                        scanCooldown = true;
+                        setTimeout(() => {
+                            scanCooldown = false;
+                        }, 800);
+                    }
+                });
 
-            } catch (err) {
-                console.error('Camera error:', err);
-                showStatus('❌ Camera access denied. Please allow camera permissions.', 'error');
-                stopScanning();
-            }
+                // Handle process (for continuous scanning)
+                Quagga.onProcessed(function(result) {
+                    // Optional: draw bounding box
+                });
+            });
+
+            return true;
         }
 
-        function decodeFrame() {
-            if (!scanning) return;
+        // ===== QR CODE FALLBACK (using jsQR) =====
+        function startQRScan() {
+            // Check if QR is selected
+            const decoders = getSelectedDecoders();
+            if (!decoders.includes('qr')) return false;
+
+            navigator.mediaDevices.getUserMedia({
+                video: { 
+                    facingMode: useFrontCamera ? "user" : "environment",
+                    width: { ideal: 640 }
+                }
+            })
+            .then(stream => {
+                currentStream = stream;
+                video.srcObject = stream;
+                scannerContainer.style.display = 'block';
+                scanStatus.style.display = 'block';
+                scanStatus.textContent = '🔍 Scanning QR...';
+                controls.style.display = 'flex';
+                scanBtn.disabled = true;
+                scanBtn.textContent = '⏳ Scanning...';
+                isScanning = true;
+                
+                // Start QR decode loop
+                decodeQRFrame();
+            })
+            .catch(err => {
+                console.error('QR camera error:', err);
+                return false;
+            });
+
+            return true;
+        }
+
+        function decodeQRFrame() {
+            if (!isScanning || !currentStream) return;
 
             if (video.readyState === video.HAVE_ENOUGH_DATA) {
                 const canvas = document.createElement('canvas');
@@ -420,47 +593,95 @@
                         inversionAttempts: 'dontInvert',
                     });
 
-                    if (code && code.data) {
+                    if (code && code.data && !scanCooldown) {
                         const sn = code.data.trim();
-                        if (addAsset(sn)) {
-                            // Vibrate on success if supported
-                            if (navigator.vibrate) navigator.vibrate(100);
-                            // Brief pause before continuing
+                        if (addAsset(sn, 'QR Code')) {
+                            scanCooldown = true;
                             setTimeout(() => {
-                                if (scanning) decodeFrame();
-                            }, 500);
-                            return;
+                                scanCooldown = false;
+                            }, 800);
                         }
                     }
                 } catch (e) { /* silent */ }
             }
 
-            animationId = requestAnimationFrame(decodeFrame);
+            if (isScanning) {
+                requestAnimationFrame(decodeQRFrame);
+            }
         }
 
+        // ===== MAIN SCAN FUNCTION =====
+        function startScanning() {
+            if (isScanning) return;
+
+            // Clear any previous state
+            stopScanning();
+
+            // Try Quagga (barcodes) first
+            const quaggaStarted = startQuaggaScan();
+            
+            // If QR is selected and Quagga is having issues, also start QR fallback
+            const decoders = getSelectedDecoders();
+            if (decoders.includes('qr')) {
+                // Quagga handles QR too, but we'll use jsQR as fallback if Quagga fails
+                setTimeout(() => {
+                    if (!isScanning || !document.querySelector('#scanner-container video')) {
+                        // Quagga didn't start, try QR fallback
+                        startQRScan();
+                    }
+                }, 2000);
+            }
+
+            // If neither started, show error
+            if (!quaggaStarted && !decoders.includes('qr')) {
+                showStatus('❌ No scanner started. Please select at least one barcode type.', 'error');
+            }
+        }
+
+        // ===== STOP SCANNING =====
         function stopScanning() {
-            scanning = false;
-            if (animationId) {
-                cancelAnimationFrame(animationId);
-                animationId = null;
+            isScanning = false;
+            
+            // Stop Quagga
+            try {
+                Quagga.stop();
+                Quagga.offDetected();
+                Quagga.offProcessed();
+            } catch (e) { /* silent */ }
+            
+            // Stop video stream
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+                currentStream = null;
             }
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-                stream = null;
-            }
+            
+            // Clear video
             video.srcObject = null;
-            videoContainer.style.display = 'none';
+            video.load();
+            
+            // Hide scanner
+            scannerContainer.style.display = 'none';
             scanStatus.style.display = 'none';
             controls.style.display = 'none';
             scanBtn.disabled = false;
             scanBtn.textContent = '📷 Scan Barcode/QR';
         }
 
+        // ===== SWITCH CAMERA =====
+        function switchCamera() {
+            useFrontCamera = !useFrontCamera;
+            if (isScanning) {
+                stopScanning();
+                setTimeout(startScanning, 300);
+            }
+            showStatus(`📸 Switched to ${useFrontCamera ? 'front' : 'rear'} camera`, 'success');
+        }
+
         // ===== MANUAL ENTRY =====
         function manualEntry() {
             const sn = prompt('Enter Serial Number / Asset ID:');
             if (sn !== null && sn.trim() !== '') {
-                addAsset(sn.trim());
+                addAsset(sn.trim(), 'manual');
             }
         }
 
@@ -470,9 +691,9 @@
                 showStatus('⚠️ No assets to export', 'warning');
                 return null;
             }
-            let csv = 'Serial Number,Note\n';
+            let csv = 'Serial Number,Note,Type,Timestamp\n';
             assets.forEach(a => {
-                csv += `"${a.sn}","${(a.note || '').replace(/"/g, '""')}"\n`;
+                csv += `"${a.sn}","${(a.note || '').replace(/"/g, '""')}","${a.type || ''}","${a.timestamp || ''}"\n`;
             });
             return csv;
         }
@@ -482,17 +703,19 @@
                 showStatus('⚠️ No assets to export', 'warning');
                 return null;
             }
-            let text = 'ASSET LIST\n';
-            text += '='.repeat(40) + '\n\n';
+            let text = 'ASSET REGISTRY LIST\n';
+            text += '='.repeat(50) + '\n\n';
             assets.forEach((a, i) => {
                 text += `${i+1}. ${a.sn}`;
                 if (a.note) text += ` (${a.note})`;
+                if (a.type) text += ` [${a.type}]`;
                 text += '\n';
             });
+            text += '\n' + '='.repeat(50) + '\n';
+            text += `Total: ${assets.length} assets`;
             return text;
         }
 
-        // ===== EMAIL =====
         function emailList() {
             const text = getTextList();
             if (!text) return;
@@ -503,7 +726,6 @@
             showStatus('📧 Email client opened', 'success');
         }
 
-        // ===== SAVE TO DEVICE =====
         function saveToDevice() {
             const csv = getCSV();
             if (!csv) return;
@@ -525,7 +747,6 @@
             }
         }
 
-        // ===== COPY CSV =====
         function copyCSV() {
             const csv = getCSV();
             if (!csv) return;
@@ -555,7 +776,6 @@
             document.body.removeChild(textarea);
         }
 
-        // ===== CLEAR =====
         function clearAll() {
             if (assets.length === 0) {
                 showStatus('⚠️ No assets to clear', 'warning');
@@ -586,6 +806,7 @@
         scanBtn.addEventListener('click', startScanning);
         stopScanBtn.addEventListener('click', stopScanning);
         manualInputBtn.addEventListener('click', manualEntry);
+        switchCameraBtn.addEventListener('click', switchCamera);
         document.getElementById('emailBtn').addEventListener('click', emailList);
         document.getElementById('saveBtn').addEventListener('click', saveToDevice);
         document.getElementById('exportBtn').addEventListener('click', copyCSV);
@@ -593,7 +814,7 @@
 
         // Stop scanning if user navigates away
         document.addEventListener('visibilitychange', () => {
-            if (document.hidden && scanning) {
+            if (document.hidden && isScanning) {
                 stopScanning();
             }
         });
@@ -601,8 +822,9 @@
         // ===== INIT =====
         loadAssets();
 
-        console.log('📱 Asset Scanner ready!');
+        console.log('📱 Asset Scanner ready! (Enhanced Barcode Support)');
         console.log(`📦 ${assets.length} assets loaded`);
+        console.log('📋 Supported formats: Code 128, Code 39, EAN/UPC, Code 93, Codabar, QR, PDF417');
     </script>
 </body>
 </html>
