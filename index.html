@@ -1,277 +1,608 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Asset Tracker</title>
-
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{
-    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;
-    background:#f5f5f5;
-    padding:20px
-}
-.container{
-    max-width:600px;
-    margin:auto;
-    background:#fff;
-    padding:20px;
-    border-radius:10px;
-    box-shadow:0 2px 10px rgba(0,0,0,.1)
-}
-h1{text-align:center;margin-bottom:20px;color:#333}
-.form-group{margin-bottom:20px}
-label{display:block;margin-bottom:5px;font-weight:500;color:#555}
-input{
-    width:100%;
-    padding:12px;
-    border:2px solid #ddd;
-    border-radius:5px;
-    font-size:16px
-}
-input:focus{outline:none;border-color:#4CAF50}
-button{
-    width:100%;
-    padding:12px;
-    border:none;
-    border-radius:5px;
-    font-size:16px;
-    font-weight:600;
-    cursor:pointer;
-    margin-bottom:10px
-}
-.btn-scan{background:#2196F3;color:#fff}
-.btn-submit{background:#4CAF50;color:#fff}
-.btn-export{background:#FF9800;color:#fff}
-#video-container{
-    display:none;
-    background:#000;
-    margin:15px 0;
-    border-radius:5px;
-    overflow:hidden;
-    position:relative
-}
-#video{width:100%}
-.scan-line{
-    position:absolute;
-    width:100%;
-    height:2px;
-    background:#4CAF50;
-    animation:scan 2s linear infinite
-}
-@keyframes scan{
-    0%{top:0}
-    50%{top:100%}
-    100%{top:0}
-}
-#zoomControl{display:none;margin:10px 0}
-.asset-item{
-    background:#f9f9f9;
-    padding:15px;
-    margin-bottom:10px;
-    border-left:4px solid #4CAF50;
-    border-radius:5px
-}
-.asset-item button{
-    background:#f44336;
-    color:#fff;
-    padding:5px 15px;
-    margin-top:10px
-}
-.status{
-    padding:10px;
-    border-radius:5px;
-    margin-bottom:10px;
-    display:none
-}
-.status.success{background:#d4edda;color:#155724;display:block}
-.status.error{background:#f8d7da;color:#721c24;display:block}
-.status.info{background:#d1ecf1;color:#0c5460;display:block}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Asset Scanner</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f7fa;
+            padding: 20px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #1a1a2e;
+            font-size: 24px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .scan-btn {
+            width: 100%;
+            padding: 18px;
+            background: #4a6cf7;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        .scan-btn:active {
+            transform: scale(0.97);
+            background: #3a5bd9;
+        }
+        .scan-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        #video-container {
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+            margin: 15px auto;
+            border-radius: 12px;
+            overflow: hidden;
+            background: #000;
+            display: none;
+        }
+        #video {
+            width: 100%;
+            display: block;
+        }
+        #scan-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 70%;
+            height: 70%;
+            border: 3px solid rgba(74, 108, 247, 0.8);
+            border-radius: 12px;
+            box-shadow: 0 0 0 9999px rgba(0,0,0,0.4);
+            pointer-events: none;
+        }
+        #scan-status {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-size: 14px;
+            display: none;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin: 10px 0 20px;
+        }
+        .controls button {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: white;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        .controls button:active {
+            background: #f0f0f0;
+        }
+        .list-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 20px 0 10px;
+        }
+        .list-header h2 {
+            font-size: 18px;
+            color: #1a1a2e;
+        }
+        .list-header span {
+            background: #e0e7ff;
+            color: #4a6cf7;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        .asset-item {
+            background: white;
+            border-radius: 10px;
+            padding: 12px 15px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            animation: slideIn 0.3s ease;
+        }
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        .asset-sn {
+            font-weight: 600;
+            color: #1a1a2e;
+            min-width: 80px;
+            font-size: 14px;
+            word-break: break-all;
+        }
+        .asset-note-input {
+            flex: 1;
+            padding: 6px 10px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 13px;
+            min-width: 80px;
+        }
+        .asset-note-input:focus {
+            outline: 2px solid #4a6cf7;
+            border-color: transparent;
+        }
+        .asset-remove {
+            background: none;
+            border: none;
+            color: #ff6b6b;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 0 5px;
+        }
+        .asset-remove:active {
+            transform: scale(1.2);
+        }
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+        .action-buttons button {
+            flex: 1;
+            min-width: 120px;
+            padding: 14px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .action-buttons button:active {
+            transform: scale(0.97);
+        }
+        .btn-email {
+            background: #4a6cf7;
+            color: white;
+        }
+        .btn-save {
+            background: #34c759;
+            color: white;
+        }
+        .btn-clear {
+            background: #ff6b6b;
+            color: white;
+        }
+        .btn-export {
+            background: #f7a84a;
+            color: white;
+        }
+        #status-msg {
+            margin: 15px 0;
+            padding: 12px;
+            border-radius: 8px;
+            background: #e8f5e9;
+            color: #2e7d32;
+            display: none;
+            font-size: 14px;
+        }
+        @media (max-width: 480px) {
+            .asset-item {
+                flex-wrap: wrap;
+            }
+            .asset-sn {
+                width: 100%;
+                font-size: 13px;
+            }
+            .asset-note-input {
+                flex: 1;
+                min-width: 120px;
+            }
+            .action-buttons button {
+                min-width: 100px;
+                font-size: 14px;
+                padding: 12px;
+            }
+        }
+    </style>
 </head>
-
 <body>
-<div class="container">
-<h1>📦 Asset Tracker</h1>
 
-<div id="status" class="status"></div>
+    <h1>📱 Asset Scanner</h1>
 
-<form id="assetForm">
-    <div class="form-group">
-        <label>User Name</label>
-        <input id="userName" required />
-    </div>
-
-    <div class="form-group">
-        <label>Device Description</label>
-        <input id="deviceDesc" required />
-    </div>
-
-    <div class="form-group">
-        <label>Serial Number</label>
-        <input id="serialNumber" required />
-    </div>
-
-    <button type="button" id="scanBtn" class="btn-scan">📷 Scan Barcode / QR</button>
+    <button class="scan-btn" id="scanBtn">📷 Scan Barcode/QR</button>
 
     <div id="video-container">
         <video id="video" autoplay playsinline></video>
-        <div class="scan-line"></div>
+        <div id="scan-overlay"></div>
+        <div id="scan-status">Scanning...</div>
     </div>
 
-    <div id="zoomControl">
-        <label>🔍 Zoom</label>
-        <input type="range" id="zoomSlider" min="1" max="3" step="0.1" value="1">
+    <div class="controls" id="controls" style="display:none;">
+        <button id="stopScanBtn">⏹ Stop Scanning</button>
+        <button id="manualInputBtn">✏️ Manual Entry</button>
     </div>
 
-    <button type="submit" class="btn-submit">✅ Add Asset</button>
-</form>
+    <div id="status-msg"></div>
 
-<button id="exportBtn" class="btn-export">📥 Export CSV</button>
+    <div class="list-header">
+        <h2>📦 Scanned Assets</h2>
+        <span id="count">0</span>
+    </div>
 
-<div class="asset-list">
-<h3>Captured Assets (<span id="assetCount">0</span>)</h3>
-<div id="assetsList"></div>
-</div>
-</div>
+    <div id="assetList"></div>
 
-<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <div class="action-buttons">
+        <button class="btn-email" id="emailBtn">📧 Email List</button>
+        <button class="btn-save" id="saveBtn">💾 Save to Device</button>
+        <button class="btn-export" id="exportBtn">📋 Copy CSV</button>
+        <button class="btn-clear" id="clearBtn">🗑 Clear All</button>
+    </div>
 
-<script>
-let assets = JSON.parse(localStorage.getItem('assets')) || [];
-let html5QrCode = null;
-let scanning = false;
-let currentTrack = null;
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+    <script>
+        // ===== STATE =====
+        let assets = [];
+        let scanning = false;
+        let stream = null;
+        let animationId = null;
 
-const scanBtn = document.getElementById('scanBtn');
-const serialInput = document.getElementById('serialNumber');
-const videoContainer = document.getElementById('video-container');
-const zoomControl = document.getElementById('zoomControl');
-const zoomSlider = document.getElementById('zoomSlider');
-const assetsList = document.getElementById('assetsList');
-const status = document.getElementById('status');
+        // DOM refs
+        const video = document.getElementById('video');
+        const videoContainer = document.getElementById('video-container');
+        const scanBtn = document.getElementById('scanBtn');
+        const stopScanBtn = document.getElementById('stopScanBtn');
+        const manualInputBtn = document.getElementById('manualInputBtn');
+        const controls = document.getElementById('controls');
+        const assetList = document.getElementById('assetList');
+        const count = document.getElementById('count');
+        const statusMsg = document.getElementById('status-msg');
+        const scanStatus = document.getElementById('scan-status');
 
-displayAssets();
-checkCameraSupport();
+        // ===== LOAD SAVED DATA =====
+        function loadAssets() {
+            try {
+                const saved = localStorage.getItem('assets');
+                if (saved) {
+                    assets = JSON.parse(saved);
+                    renderAssets();
+                }
+            } catch (e) { console.error('Load error', e); }
+        }
 
-async function checkCameraSupport(){
-    try{
-        await navigator.mediaDevices.getUserMedia({video:true});
-        showStatus('Camera ready (rear camera)', 'info');
-        setTimeout(()=>status.style.display='none',3000);
-    }catch{
-        showStatus('Camera not available', 'error');
-        scanBtn.disabled=true;
-    }
-}
+        function saveAssets() {
+            try {
+                localStorage.setItem('assets', JSON.stringify(assets));
+            } catch (e) { console.error('Save error', e); }
+        }
 
-scanBtn.onclick = ()=> scanning ? stopScanning() : startScanning();
+        // ===== RENDER =====
+        function renderAssets() {
+            if (assets.length === 0) {
+                assetList.innerHTML = `
+                    <div style="text-align:center;padding:40px 20px;color:#999;font-size:15px;">
+                        No assets scanned yet.<br>Tap "Scan Barcode/QR" to start.
+                    </div>
+                `;
+                count.textContent = '0';
+                return;
+            }
 
-async function startScanning(){
-    scanning=true;
-    scanBtn.textContent='⏹ Stop Scanning';
-    videoContainer.style.display='block';
+            let html = '';
+            assets.forEach((asset, index) => {
+                html += `
+                    <div class="asset-item">
+                        <span class="asset-sn">${escapeHtml(asset.sn)}</span>
+                        <input class="asset-note-input" type="text" 
+                               placeholder="Add note..." 
+                               value="${escapeHtml(asset.note || '')}"
+                               data-index="${index}"
+                               onchange="updateNote(${index}, this.value)">
+                        <button class="asset-remove" onclick="removeAsset(${index})">✕</button>
+                    </div>
+                `;
+            });
+            assetList.innerHTML = html;
+            count.textContent = assets.length;
+            saveAssets();
+        }
 
-    html5QrCode = new Html5Qrcode("video-container");
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
 
-    const config={
-        fps:10,
-        qrbox:{width:250,height:250},
-        formatsToSupport:Object.values(Html5QrcodeSupportedFormats)
-    };
+        window.updateNote = function(index, value) {
+            if (index >= 0 && index < assets.length) {
+                assets[index].note = value.trim();
+                saveAssets();
+            }
+        };
 
-    try{
-        await html5QrCode.start(
-            { facingMode:{ exact:"environment" } },
-            config,
-            onScanSuccess
-        );
-    }catch{
-        await html5QrCode.start(
-            { facingMode:"environment" },
-            config,
-            onScanSuccess
-        );
-    }
+        window.removeAsset = function(index) {
+            if (confirm('Remove this asset?')) {
+                assets.splice(index, 1);
+                renderAssets();
+                showStatus('Asset removed', 'success');
+            }
+        };
 
-    currentTrack = html5QrCode.getRunningTrack();
-    if(currentTrack?.getCapabilities()?.zoom){
-        const z=currentTrack.getCapabilities().zoom;
-        zoomSlider.min=z.min;
-        zoomSlider.max=z.max;
-        zoomSlider.step=z.step||0.1;
-        zoomControl.style.display='block';
-    }
-}
+        // ===== ADD ASSET =====
+        function addAsset(sn) {
+            sn = sn.trim();
+            if (!sn) return false;
 
-function onScanSuccess(text){
-    serialInput.value=text;
-    showStatus(`✅ Scanned: ${text}`, 'success');
-    navigator.vibrate?.(200);
-    stopScanning();
-}
+            // Check for duplicate
+            if (assets.some(a => a.sn.toLowerCase() === sn.toLowerCase())) {
+                showStatus(`⚠️ "${sn}" already in list`, 'warning');
+                return false;
+            }
 
-async function stopScanning(){
-    if(html5QrCode){
-        await html5QrCode.stop();
-        html5QrCode.clear();
-    }
-    scanning=false;
-    scanBtn.textContent='📷 Scan Barcode / QR';
-    videoContainer.style.display='none';
-    zoomControl.style.display='none';
-    currentTrack=null;
-}
+            assets.push({ sn: sn, note: '' });
+            renderAssets();
+            showStatus(`✅ Added: ${sn}`, 'success');
+            return true;
+        }
 
-zoomSlider.oninput=()=>{
-    currentTrack?.applyConstraints({advanced:[{zoom:zoomSlider.value}]});
-};
+        // ===== SCANNING =====
+        async function startScanning() {
+            if (scanning) return;
 
-document.getElementById('assetForm').onsubmit=e=>{
-    e.preventDefault();
-    assets.push({
-        id:Date.now(),
-        user:userName.value,
-        device:deviceDesc.value,
-        serial:serialInput.value,
-        date:new Date().toLocaleString()
-    });
-    localStorage.setItem('assets',JSON.stringify(assets));
-    e.target.reset();
-    displayAssets();
-    showStatus('Asset added','success');
-};
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'environment', width: { ideal: 640 } }
+                });
+                video.srcObject = stream;
+                videoContainer.style.display = 'block';
+                scanStatus.style.display = 'block';
+                controls.style.display = 'flex';
+                scanBtn.disabled = true;
+                scanBtn.textContent = '⏳ Scanning...';
+                scanning = true;
 
-function displayAssets(){
-    assetCount.textContent=assets.length;
-    assetsList.innerHTML=assets.map(a=>`
-        <div class="asset-item">
-            <strong>${a.user}</strong><br>
-            ${a.device}<br>
-            🔢 ${a.serial}<br>
-            📅 ${a.date}
-        </div>
-    `).reverse().join('');
-}
+                // Start decode loop
+                decodeFrame();
 
-exportBtn.onclick=()=>{
-    if(!assets.length)return showStatus('No assets','error');
-    const csv=[
-        ['User','Device','Serial','Date'],
-        ...assets.map(a=>[a.user,a.device,a.serial,a.date])
-    ].map(r=>r.map(c=>`"${c}"`).join(',')).join('\n');
-    const b=new Blob([csv],{type:'text/csv'});
-    const a=document.createElement('a');
-    a.href=URL.createObjectURL(b);
-    a.download='assets.csv';
-    a.click();
-};
+            } catch (err) {
+                console.error('Camera error:', err);
+                showStatus('❌ Camera access denied. Please allow camera permissions.', 'error');
+                stopScanning();
+            }
+        }
 
-function showStatus(msg,type){
-    status.textContent=msg;
-    status.className=`status ${type}`;
-}
-</script>
+        function decodeFrame() {
+            if (!scanning) return;
+
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                const canvas = document.createElement('canvas');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+                try {
+                    const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                        inversionAttempts: 'dontInvert',
+                    });
+
+                    if (code && code.data) {
+                        const sn = code.data.trim();
+                        if (addAsset(sn)) {
+                            // Vibrate on success if supported
+                            if (navigator.vibrate) navigator.vibrate(100);
+                            // Brief pause before continuing
+                            setTimeout(() => {
+                                if (scanning) decodeFrame();
+                            }, 500);
+                            return;
+                        }
+                    }
+                } catch (e) { /* silent */ }
+            }
+
+            animationId = requestAnimationFrame(decodeFrame);
+        }
+
+        function stopScanning() {
+            scanning = false;
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+            }
+            video.srcObject = null;
+            videoContainer.style.display = 'none';
+            scanStatus.style.display = 'none';
+            controls.style.display = 'none';
+            scanBtn.disabled = false;
+            scanBtn.textContent = '📷 Scan Barcode/QR';
+        }
+
+        // ===== MANUAL ENTRY =====
+        function manualEntry() {
+            const sn = prompt('Enter Serial Number / Asset ID:');
+            if (sn !== null && sn.trim() !== '') {
+                addAsset(sn.trim());
+            }
+        }
+
+        // ===== EXPORT FUNCTIONS =====
+        function getCSV() {
+            if (assets.length === 0) {
+                showStatus('⚠️ No assets to export', 'warning');
+                return null;
+            }
+            let csv = 'Serial Number,Note\n';
+            assets.forEach(a => {
+                csv += `"${a.sn}","${(a.note || '').replace(/"/g, '""')}"\n`;
+            });
+            return csv;
+        }
+
+        function getTextList() {
+            if (assets.length === 0) {
+                showStatus('⚠️ No assets to export', 'warning');
+                return null;
+            }
+            let text = 'ASSET LIST\n';
+            text += '='.repeat(40) + '\n\n';
+            assets.forEach((a, i) => {
+                text += `${i+1}. ${a.sn}`;
+                if (a.note) text += ` (${a.note})`;
+                text += '\n';
+            });
+            return text;
+        }
+
+        // ===== EMAIL =====
+        function emailList() {
+            const text = getTextList();
+            if (!text) return;
+
+            const subject = encodeURIComponent('Asset Registry List');
+            const body = encodeURIComponent(text);
+            window.location.href = `mailto:?subject=${subject}&body=${body}`;
+            showStatus('📧 Email client opened', 'success');
+        }
+
+        // ===== SAVE TO DEVICE =====
+        function saveToDevice() {
+            const csv = getCSV();
+            if (!csv) return;
+
+            try {
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                const url = URL.createObjectURL(blob);
+                link.href = url;
+                link.download = `assets_${new Date().toISOString().slice(0,10)}.csv`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+                showStatus('💾 File downloaded successfully', 'success');
+            } catch (err) {
+                showStatus('❌ Download failed', 'error');
+                console.error(err);
+            }
+        }
+
+        // ===== COPY CSV =====
+        function copyCSV() {
+            const csv = getCSV();
+            if (!csv) return;
+
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(csv).then(() => {
+                    showStatus('📋 CSV copied to clipboard!', 'success');
+                }).catch(() => {
+                    fallbackCopy(csv);
+                });
+            } else {
+                fallbackCopy(csv);
+            }
+        }
+
+        function fallbackCopy(text) {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                showStatus('📋 CSV copied to clipboard!', 'success');
+            } catch (err) {
+                showStatus('❌ Copy failed. Try the email or save option.', 'error');
+            }
+            document.body.removeChild(textarea);
+        }
+
+        // ===== CLEAR =====
+        function clearAll() {
+            if (assets.length === 0) {
+                showStatus('⚠️ No assets to clear', 'warning');
+                return;
+            }
+            if (confirm('Delete ALL assets from the list?')) {
+                assets = [];
+                renderAssets();
+                showStatus('🗑 All assets cleared', 'success');
+            }
+        }
+
+        // ===== STATUS MESSAGES =====
+        function showStatus(msg, type = 'success') {
+            statusMsg.textContent = msg;
+            statusMsg.style.display = 'block';
+            statusMsg.style.background = type === 'error' ? '#ffebee' :
+                                         type === 'warning' ? '#fff3e0' : '#e8f5e9';
+            statusMsg.style.color = type === 'error' ? '#c62828' :
+                                    type === 'warning' ? '#e65100' : '#2e7d32';
+            clearTimeout(statusMsg._timeout);
+            statusMsg._timeout = setTimeout(() => {
+                statusMsg.style.display = 'none';
+            }, 4000);
+        }
+
+        // ===== EVENT LISTENERS =====
+        scanBtn.addEventListener('click', startScanning);
+        stopScanBtn.addEventListener('click', stopScanning);
+        manualInputBtn.addEventListener('click', manualEntry);
+        document.getElementById('emailBtn').addEventListener('click', emailList);
+        document.getElementById('saveBtn').addEventListener('click', saveToDevice);
+        document.getElementById('exportBtn').addEventListener('click', copyCSV);
+        document.getElementById('clearBtn').addEventListener('click', clearAll);
+
+        // Stop scanning if user navigates away
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden && scanning) {
+                stopScanning();
+            }
+        });
+
+        // ===== INIT =====
+        loadAssets();
+
+        console.log('📱 Asset Scanner ready!');
+        console.log(`📦 ${assets.length} assets loaded`);
+    </script>
 </body>
 </html>
