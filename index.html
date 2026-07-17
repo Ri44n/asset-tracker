@@ -66,12 +66,89 @@
     color: var(--text);
     font-size: 0.95rem;
   }
+  #readerWrap {
+    position: relative;
+    width: 100%;
+    border-radius: 10px;
+    overflow: hidden;
+  }
   #reader {
     width: 100%;
     border-radius: 10px;
     overflow: hidden;
     background: #000;
     min-height: 60px;
+  }
+  .scan-line {
+    position: absolute;
+    left: 8%;
+    right: 8%;
+    top: 50%;
+    height: 2px;
+    background: #ef4444;
+    box-shadow: 0 0 4px 1px rgba(239, 68, 68, 0.8);
+    pointer-events: none;
+    z-index: 5;
+    display: none;
+  }
+  .scan-line.active { display: block; }
+  .focus-ripple {
+    position: absolute;
+    width: 56px;
+    height: 56px;
+    margin-left: -28px;
+    margin-top: -28px;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 6;
+    opacity: 0;
+  }
+  .focus-ripple.pulse {
+    animation: focusPulse 0.5s ease-out;
+  }
+  @keyframes focusPulse {
+    0% { opacity: 1; transform: scale(1.2); }
+    100% { opacity: 0; transform: scale(0.85); }
+  }
+  .camera-controls {
+    margin-top: 10px;
+    display: none;
+  }
+  .camera-controls.visible { display: block; }
+  .control-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .control-row label {
+    margin-bottom: 0;
+    flex: none;
+    width: 55px;
+  }
+  .control-row input[type="range"] {
+    flex: 1;
+    accent-color: var(--accent);
+  }
+  .zoom-value {
+    width: 34px;
+    text-align: right;
+    font-size: 0.8rem;
+    color: var(--muted);
+    flex: none;
+  }
+  #zoom2xBtn, #torchBtn {
+    flex: none;
+    min-width: unset;
+    padding: 8px 12px;
+    font-size: 0.8rem;
+  }
+  #torchBtn.on { background: var(--warn); color: #241a04; }
+  .capability-note {
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin-top: 4px;
   }
   .btn-row {
     display: flex;
@@ -162,10 +239,26 @@
   </div>
 
   <div class="card">
-    <div id="reader"></div>
+    <div id="readerWrap">
+      <div id="reader"></div>
+      <div class="scan-line" id="scanLine"></div>
+      <div class="focus-ripple" id="focusRipple"></div>
+    </div>
     <div class="btn-row">
       <button id="startBtn" class="btn-primary">Start Camera</button>
       <button id="stopBtn" class="btn-secondary" disabled>Stop Camera</button>
+    </div>
+    <div class="camera-controls" id="cameraControls">
+      <div class="control-row" id="zoomRow" style="display:none;">
+        <label for="zoomSlider">Zoom</label>
+        <input type="range" id="zoomSlider" min="1" max="1" step="0.1" value="1">
+        <span class="zoom-value" id="zoomValue">1x</span>
+        <button id="zoom2xBtn" class="btn-outline">2x</button>
+      </div>
+      <div class="control-row" id="torchRow" style="display:none;">
+        <button id="torchBtn" class="btn-outline">Flash off</button>
+      </div>
+      <div class="capability-note" id="focusNote"></div>
     </div>
     <div id="status"></div>
   </div>
@@ -220,6 +313,20 @@
   const exportBtn = document.getElementById("exportBtn");
   const clearBtn = document.getElementById("clearBtn");
   const sessionLabelInput = document.getElementById("sessionLabel");
+  const readerWrap = document.getElementById("readerWrap");
+  const scanLine = document.getElementById("scanLine");
+  const focusRipple = document.getElementById("focusRipple");
+  const cameraControls = document.getElementById("cameraControls");
+  const zoomRow = document.getElementById("zoomRow");
+  const zoomSlider = document.getElementById("zoomSlider");
+  const zoomValue = document.getElementById("zoomValue");
+  const zoom2xBtn = document.getElementById("zoom2xBtn");
+  const torchRow = document.getElementById("torchRow");
+  const torchBtn = document.getElementById("torchBtn");
+  const focusNote = document.getElementById("focusNote");
+
+  let torchOn = false;
+  let focusCapable = false;
 
   function loadItems() {
     try {
@@ -353,7 +460,9 @@
       scanning = true;
       startBtn.disabled = true;
       stopBtn.disabled = false;
+      scanLine.classList.add("active");
       setStatus("Camera active — point at a barcode", "ok");
+      setupCameraControls();
     } catch (err) {
       setStatus("Could not start camera: " + err + " (try manual entry, or open this page over HTTPS)", "dup");
     }
@@ -368,8 +477,131 @@
     scanning = false;
     startBtn.disabled = false;
     stopBtn.disabled = true;
+    scanLine.classList.remove("active");
+    cameraControls.classList.remove("visible");
+    zoomRow.style.display = "none";
+    torchRow.style.display = "none";
+    focusNote.textContent = "";
+    torchOn = false;
+    focusCapable = false;
     setStatus("Camera stopped");
   }
+
+  function setupCameraControls() {
+    cameraControls.classList.add("visible");
+    let caps;
+    try {
+      caps = html5QrCode.getRunningTrackCameraCapabilities();
+    } catch (e) {
+      focusNote.textContent = "This browser doesn't expose zoom/flash/focus controls.";
+      return;
+    }
+
+    // Zoom
+    try {
+      const zoomFeature = caps.zoomFeature();
+      if (zoomFeature && zoomFeature.isSupported()) {
+        const min = zoomFeature.min();
+        const max = zoomFeature.max();
+        const step = zoomFeature.step() || 0.1;
+        const current = zoomFeature.value() || min;
+        zoomSlider.min = min;
+        zoomSlider.max = max;
+        zoomSlider.step = step;
+        zoomSlider.value = current;
+        zoomValue.textContent = current + "x";
+        zoomRow.style.display = "flex";
+        zoom2xBtn.disabled = max < 2;
+      } else {
+        zoomRow.style.display = "none";
+      }
+    } catch (e) {
+      zoomRow.style.display = "none";
+    }
+
+    // Torch / flash
+    try {
+      const torchFeature = caps.torchFeature();
+      if (torchFeature && torchFeature.isSupported()) {
+        torchRow.style.display = "flex";
+        torchOn = false;
+        torchBtn.textContent = "Flash off";
+        torchBtn.classList.remove("on");
+      } else {
+        torchRow.style.display = "none";
+      }
+    } catch (e) {
+      torchRow.style.display = "none";
+    }
+
+    // Manual focus / refocus support (best-effort, varies a lot by device)
+    try {
+      const rawCaps = html5QrCode.getRunningTrackCapabilities();
+      const focusModes = rawCaps && rawCaps.focusMode;
+      focusCapable = !!(focusModes && (focusModes.includes("manual") || focusModes.includes("single-shot")));
+      if (focusCapable) {
+        focusNote.textContent = "Tap the video to refocus.";
+      } else {
+        focusNote.textContent = "Tap-to-focus isn't supported on this camera — use Zoom to stay farther from the barcode instead.";
+      }
+    } catch (e) {
+      focusCapable = false;
+      focusNote.textContent = "Tap-to-focus isn't supported on this camera — use Zoom to stay farther from the barcode instead.";
+    }
+  }
+
+  async function applyZoom(value) {
+    try {
+      const caps = html5QrCode.getRunningTrackCameraCapabilities();
+      await caps.zoomFeature().apply(value);
+      zoomValue.textContent = (Math.round(value * 10) / 10) + "x";
+    } catch (e) { /* ignore */ }
+  }
+
+  async function toggleTorch() {
+    try {
+      const caps = html5QrCode.getRunningTrackCameraCapabilities();
+      torchOn = !torchOn;
+      await caps.torchFeature().apply(torchOn);
+      torchBtn.textContent = torchOn ? "Flash on" : "Flash off";
+      torchBtn.classList.toggle("on", torchOn);
+    } catch (e) {
+      setStatus("Couldn't toggle flash on this device", "dup");
+    }
+  }
+
+  function showFocusRipple(x, y) {
+    focusRipple.style.left = x + "px";
+    focusRipple.style.top = y + "px";
+    focusRipple.classList.remove("pulse");
+    // force reflow so the animation can restart
+    void focusRipple.offsetWidth;
+    focusRipple.classList.add("pulse");
+  }
+
+  async function attemptRefocus() {
+    if (!scanning || !html5QrCode) return;
+    try {
+      if (focusCapable) {
+        await html5QrCode.applyVideoConstraints({ advanced: [{ focusMode: "single-shot" }] });
+      }
+    } catch (e) { /* device doesn't support it, ripple is still shown as feedback */ }
+  }
+
+  readerWrap.addEventListener("click", (e) => {
+    if (!scanning) return;
+    const rect = readerWrap.getBoundingClientRect();
+    showFocusRipple(e.clientX - rect.left, e.clientY - rect.top);
+    attemptRefocus();
+  });
+
+  zoomSlider.addEventListener("input", () => applyZoom(parseFloat(zoomSlider.value)));
+  zoom2xBtn.addEventListener("click", () => {
+    const target = Math.min(2, parseFloat(zoomSlider.max));
+    zoomSlider.value = target;
+    applyZoom(target);
+  });
+  torchBtn.addEventListener("click", toggleTorch);
 
   function exportCsv() {
     if (items.length === 0) {
