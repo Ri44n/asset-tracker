@@ -191,6 +191,15 @@
   th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); }
   th { color: var(--muted); font-weight: 500; font-size: 0.75rem; text-transform: uppercase; }
   tr.dup-row td { color: var(--warn); }
+  .label-input {
+    width: 100%;
+    padding: 5px 6px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: #0f172a;
+    color: var(--text);
+    font-size: 0.8rem;
+  }
   .del-btn {
     background: none;
     border: none;
@@ -417,19 +426,28 @@
       listContainer.innerHTML = '<div class="empty-state">No items scanned yet</div>';
       return;
     }
-    let html = '<table><thead><tr><th>#</th><th>Code</th><th>Format</th><th>Time</th><th></th></tr></thead><tbody>';
+    let html = '<table><thead><tr><th>#</th><th>Code</th><th>Label</th><th>Time</th><th></th></tr></thead><tbody>';
     items.forEach((it, idx) => {
       const rowClass = it.dup ? "dup-row" : "";
       html += `<tr class="${rowClass}">
         <td>${items.length - idx}</td>
         <td>${escapeHtml(it.code)}</td>
-        <td>${escapeHtml(it.format)}</td>
+        <td><input type="text" class="label-input" data-idx="${idx}" value="${escapeHtml(it.label || '')}" placeholder="Add name"></td>
         <td>${escapeHtml(it.timeDisplay)}</td>
         <td><button class="del-btn" data-idx="${idx}" title="Delete">&times;</button></td>
       </tr>`;
     });
     html += '</tbody></table>';
     listContainer.innerHTML = html;
+    listContainer.querySelectorAll(".label-input").forEach(inp => {
+      inp.addEventListener("input", () => {
+        const idx = parseInt(inp.getAttribute("data-idx"), 10);
+        if (items[idx]) {
+          items[idx].label = inp.value;
+          saveItems();
+        }
+      });
+    });
     listContainer.querySelectorAll(".del-btn").forEach(btn => {
       btn.addEventListener("click", () => removeItem(parseInt(btn.getAttribute("data-idx"), 10)));
     });
@@ -617,14 +635,22 @@
   });
   torchBtn.addEventListener("click", toggleTorch);
 
+  function formatDateOnly(iso) {
+    const d = new Date(iso);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+
   function exportCsv() {
     if (items.length === 0) {
       setStatus("Nothing to export yet", "dup");
       return;
     }
-    const header = ["#", "Code", "Format", "Label", "Timestamp"];
+    const header = ["#", "Code", "Label", "Date"];
     const rows = items.slice().reverse().map((it, idx) => [
-      idx + 1, it.code, it.format, it.label || "", it.time
+      idx + 1, it.code, it.label || "", formatDateOnly(it.time)
     ]);
     let csv = header.join(",") + "\n";
     rows.forEach(r => {
