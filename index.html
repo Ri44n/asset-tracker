@@ -472,18 +472,26 @@
     // called continuously while no code is in frame; ignore
   }
 
+  function nextFrame() {
+    return new Promise(resolve => requestAnimationFrame(resolve));
+  }
+
   async function startScanning() {
     if (scanning) return;
     setStatus("Starting camera…");
-    html5QrCode = new Html5Qrcode("reader");
     const config = { fps: 10, qrbox: { width: 250, height: 150 } };
-    // Show the camera container BEFORE starting the camera. html5-qrcode measures
-    // the container's size when it attaches the video feed — if the container is
-    // still display:none at that moment, the video ends up with no usable size
-    // (the collapsed "thin black bar" bug).
+    // Show the camera container BEFORE starting the camera. html5-qrcode reads
+    // the container's clientWidth/clientHeight when it attaches the video feed —
+    // if the container is still display:none (or mid-layout) at that moment, the
+    // video ends up baked in with no usable size (the collapsed "thin black bar"
+    // bug). Waiting two animation frames guarantees the browser has fully applied
+    // the layout change before we let the library measure anything.
     readerWrap.classList.add("visible");
     startBtn.style.display = "none";
     stopBtn.style.display = "";
+    await nextFrame();
+    await nextFrame();
+    html5QrCode = new Html5Qrcode("reader");
     try {
       await html5QrCode.start(
         { facingMode: "environment" },
