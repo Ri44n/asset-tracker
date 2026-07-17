@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Serial Number Scanner</title>
+<title>Serial Scanner</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 <style>
   :root {
@@ -30,14 +30,19 @@
     text-align: center;
     border-bottom: 1px solid var(--border);
   }
+  .brand {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+  .brand-logo {
+    flex: none;
+    display: block;
+  }
   header h1 {
     margin: 0;
-    font-size: 1.2rem;
-  }
-  header p {
-    margin: 4px 0 0;
-    color: var(--muted);
-    font-size: 0.8rem;
+    font-size: 1.8rem;
   }
   main {
     max-width: 480px;
@@ -227,8 +232,24 @@
 <body>
 
 <header>
-  <h1>Serial Number Scanner</h1>
-  <p>Scan device barcodes, build a list, export to CSV</p>
+  <div class="brand">
+    <svg class="brand-logo" width="52" height="52" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Serial Scanner logo">
+      <path d="M6 18 V8 a2 2 0 0 1 2-2 H18" fill="none" stroke="#22c55e" stroke-width="4" stroke-linecap="round"/>
+      <path d="M46 6 H56 a2 2 0 0 1 2 2 V18" fill="none" stroke="#22c55e" stroke-width="4" stroke-linecap="round"/>
+      <path d="M6 46 V56 a2 2 0 0 0 2 2 H18" fill="none" stroke="#22c55e" stroke-width="4" stroke-linecap="round"/>
+      <path d="M58 46 V56 a2 2 0 0 1-2 2 H46" fill="none" stroke="#22c55e" stroke-width="4" stroke-linecap="round"/>
+      <g fill="#e2e8f0">
+        <rect x="18" y="21" width="2.5" height="22"/>
+        <rect x="23" y="21" width="4" height="22"/>
+        <rect x="29" y="21" width="2" height="22"/>
+        <rect x="33" y="21" width="3" height="22"/>
+        <rect x="38.5" y="21" width="2" height="22"/>
+        <rect x="42" y="21" width="4" height="22"/>
+      </g>
+      <line x1="10" y1="32" x2="54" y2="32" stroke="#ef4444" stroke-width="2.2" stroke-linecap="round"/>
+    </svg>
+    <h1>Serial Scanner</h1>
+  </div>
 </header>
 
 <main>
@@ -245,8 +266,8 @@
       <div class="focus-ripple" id="focusRipple"></div>
     </div>
     <div class="btn-row">
-      <button id="startBtn" class="btn-primary">Start Camera</button>
-      <button id="stopBtn" class="btn-secondary" disabled>Stop Camera</button>
+      <button id="startBtn" class="btn-primary">Start Scanning</button>
+      <button id="stopBtn" class="btn-secondary" disabled>Stop Scanning</button>
     </div>
     <div class="camera-controls" id="cameraControls">
       <div class="control-row" id="zoomRow" style="display:none;">
@@ -283,13 +304,6 @@
       <button id="clearBtn" class="btn-danger">Clear All</button>
     </div>
   </div>
-
-  <details class="card">
-    <summary>How this works / troubleshooting</summary>
-    <p>Point your camera at a barcode. When it's recognized, it's added to the list below with a timestamp and beep/vibration confirmation. Duplicate codes are still added but highlighted in orange so you can spot repeats.</p>
-    <p>Your list is saved on this device only (browser local storage) so it survives an accidental refresh, until you tap "Clear All".</p>
-    <p><strong>Camera not starting?</strong> Browsers only allow camera access on secure pages (HTTPS) or when opened from <code>localhost</code>. If the camera won't start, use the manual entry field instead, or open this file from a properly HTTPS-hosted location.</p>
-  </details>
 
 </main>
 
