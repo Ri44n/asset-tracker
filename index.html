@@ -190,7 +190,6 @@
   table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
   th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); }
   th { color: var(--muted); font-weight: 500; font-size: 0.75rem; text-transform: uppercase; }
-  tr.dup-row td { color: var(--warn); }
   .label-input {
     width: 100%;
     padding: 5px 6px;
@@ -322,9 +321,8 @@
   let items = [];
   let html5QrCode = null;
   let scanning = false;
-  let lastCode = null;
-  let lastCodeTime = 0;
-  const DEBOUNCE_MS = 2500;
+  let lastAcceptTime = 0;
+  const COOLDOWN_MS = 1000;
 
   const startBtn = document.getElementById("startBtn");
   const stopBtn = document.getElementById("stopBtn");
@@ -394,24 +392,23 @@
   }
 
   function addItem(code, format) {
+    if (isDuplicate(code)) {
+      setStatus("Already in the list, skipped: " + code, "dup");
+      return false;
+    }
     const now = new Date();
-    const dup = isDuplicate(code);
     const entry = {
       code: code,
       format: format || "manual",
       label: sessionLabelInput.value.trim(),
       time: now.toISOString(),
-      timeDisplay: now.toLocaleString(),
-      dup: dup
+      timeDisplay: now.toLocaleString()
     };
     items.unshift(entry);
     saveItems();
     render();
-    if (dup) {
-      setStatus("Added (duplicate of an earlier scan): " + code, "dup");
-    } else {
-      setStatus("Added: " + code, "ok");
-    }
+    setStatus("Added: " + code, "ok");
+    return true;
   }
 
   function removeItem(index) {
@@ -428,8 +425,7 @@
     }
     let html = '<table><thead><tr><th>#</th><th>Code</th><th>Label</th><th>Time</th><th></th></tr></thead><tbody>';
     items.forEach((it, idx) => {
-      const rowClass = it.dup ? "dup-row" : "";
-      html += `<tr class="${rowClass}">
+      html += `<tr>
         <td>${items.length - idx}</td>
         <td>${escapeHtml(it.code)}</td>
         <td><input type="text" class="label-input" data-idx="${idx}" value="${escapeHtml(it.label || '')}" placeholder="Add name"></td>
@@ -461,11 +457,10 @@
 
   function onScanSuccess(decodedText, decodedResult) {
     const now = Date.now();
-    if (decodedText === lastCode && (now - lastCodeTime) < DEBOUNCE_MS) {
-      return; // ignore rapid repeat reads of the same code
+    if (now - lastAcceptTime < COOLDOWN_MS) {
+      return; // still cooling down after the last accepted scan
     }
-    lastCode = decodedText;
-    lastCodeTime = now;
+    lastAcceptTime = now;
     const format = (decodedResult && decodedResult.result && decodedResult.result.format &&
       decodedResult.result.format.formatName) || "barcode";
     beep();
