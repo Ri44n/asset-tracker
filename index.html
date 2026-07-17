@@ -1,842 +1,429 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Asset Scanner</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #f5f7fa;
-            padding: 16px;
-            max-width: 600px;
-            margin: 0 auto;
-            padding-bottom: 80px;
-        }
-        h1 {
-            color: #1a1a2e;
-            font-size: 22px;
-            margin-bottom: 16px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        .scan-btn {
-            width: 100%;
-            padding: 16px;
-            background: #4a6cf7;
-            color: white;
-            border: none;
-            border-radius: 12px;
-            font-size: 17px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-        }
-        .scan-btn:active {
-            transform: scale(0.97);
-            background: #3a5bd9;
-        }
-        .scan-btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Serial Number Scanner</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<style>
+  :root {
+    --bg: #0f172a;
+    --card: #1e293b;
+    --accent: #22c55e;
+    --accent-dark: #16a34a;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --danger: #ef4444;
+    --warn: #f59e0b;
+    --border: #334155;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding-bottom: 40px;
+  }
+  header {
+    padding: 16px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 {
+    margin: 0;
+    font-size: 1.2rem;
+  }
+  header p {
+    margin: 4px 0 0;
+    color: var(--muted);
+    font-size: 0.8rem;
+  }
+  main {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 12px;
+  }
+  .card {
+    background: var(--card);
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 14px;
+    border: 1px solid var(--border);
+  }
+  label {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+  input[type="text"] {
+    width: 100%;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: #0f172a;
+    color: var(--text);
+    font-size: 0.95rem;
+  }
+  #reader {
+    width: 100%;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #000;
+    min-height: 60px;
+  }
+  .btn-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+  button {
+    flex: 1;
+    padding: 12px;
+    border-radius: 8px;
+    border: none;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    min-width: 100px;
+  }
+  .btn-primary { background: var(--accent); color: #04240f; }
+  .btn-primary:active { background: var(--accent-dark); }
+  .btn-secondary { background: #334155; color: var(--text); }
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn-outline { background: transparent; color: var(--text); border: 1px solid var(--border); }
+  button:disabled { opacity: 0.5; cursor: default; }
 
-        /* Scanner Overlay - Full Screen */
-        #scanner-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: #000;
-            z-index: 999;
-            display: none;
-            flex-direction: column;
-        }
-        #scanner-overlay.active {
-            display: flex;
-        }
-        #scanner-overlay video {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-        #scan-overlay-box {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 75%;
-            max-width: 350px;
-            height: 30%;
-            border: 3px solid rgba(74, 108, 247, 0.8);
-            border-radius: 12px;
-            box-shadow: 0 0 0 9999px rgba(0,0,0,0.5);
-            pointer-events: none;
-        }
-        #scan-status-overlay {
-            position: absolute;
-            bottom: 120px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0,0,0,0.8);
-            color: white;
-            padding: 10px 24px;
-            border-radius: 30px;
-            font-size: 15px;
-            white-space: nowrap;
-            pointer-events: none;
-        }
-        #scan-result-preview {
-            position: absolute;
-            top: 100px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0,0,0,0.8);
-            color: #4ade80;
-            padding: 8px 16px;
-            border-radius: 8px;
-            font-size: 13px;
-            display: none;
-            max-width: 90%;
-            text-align: center;
-            word-break: break-all;
-        }
-        .scanner-controls {
-            position: absolute;
-            bottom: 40px;
-            left: 0;
-            right: 0;
-            display: flex;
-            gap: 12px;
-            padding: 0 20px;
-            justify-content: center;
-            flex-wrap: wrap;
-        }
-        .scanner-controls button {
-            padding: 12px 24px;
-            border: none;
-            border-radius: 30px;
-            font-size: 15px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            min-width: 100px;
-        }
-        .scanner-controls button:active {
-            transform: scale(0.95);
-        }
-        .btn-stop-scan {
-            background: #ff6b6b;
-            color: white;
-        }
-        .btn-manual-scan {
-            background: white;
-            color: #1a1a2e;
-        }
-        .btn-flash-scan {
-            background: #f7a84a;
-            color: white;
-        }
-        .btn-close-scan {
-            background: rgba(255,255,255,0.2);
-            color: white;
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            min-width: auto;
-            padding: 10px 14px;
-            font-size: 20px;
-            border-radius: 50%;
-        }
+  #status {
+    margin-top: 10px;
+    font-size: 0.85rem;
+    color: var(--muted);
+    min-height: 20px;
+  }
+  #status.ok { color: var(--accent); }
+  #status.dup { color: var(--warn); }
 
-        /* Controls below scanner */
-        .controls {
-            display: flex;
-            gap: 10px;
-            margin: 12px 0 16px;
-        }
-        .controls button {
-            flex: 1;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            background: white;
-            cursor: pointer;
-            font-size: 14px;
-            transition: all 0.2s;
-        }
-        .controls button:active {
-            background: #f0f0f0;
-        }
-
-        .barcode-type-selector {
-            display: flex;
-            gap: 6px;
-            flex-wrap: wrap;
-            padding: 10px 12px;
-            background: white;
-            border-radius: 10px;
-            border: 1px solid #e0e0e0;
-            margin: 8px 0 12px;
-        }
-        .barcode-type-selector label {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            font-size: 12px;
-            cursor: pointer;
-            padding: 3px 8px;
-            background: #f5f7fa;
-            border-radius: 12px;
-            border: 1px solid #e0e0e0;
-        }
-        .barcode-type-selector label:has(input:checked) {
-            background: #e0e7ff;
-            border-color: #4a6cf7;
-        }
-        .barcode-type-selector input[type="checkbox"] {
-            width: 14px;
-            height: 14px;
-            cursor: pointer;
-        }
-
-        .list-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin: 16px 0 10px;
-        }
-        .list-header h2 {
-            font-size: 17px;
-            color: #1a1a2e;
-        }
-        .list-header span {
-            background: #e0e7ff;
-            color: #4a6cf7;
-            padding: 3px 12px;
-            border-radius: 12px;
-            font-size: 14px;
-            font-weight: 600;
-        }
-
-        .asset-item {
-            background: white;
-            border-radius: 10px;
-            padding: 10px 14px;
-            margin-bottom: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            animation: slideIn 0.3s ease;
-        }
-        @keyframes slideIn {
-            from { opacity: 0; transform: translateX(-15px); }
-            to { opacity: 1; transform: translateX(0); }
-        }
-        .asset-sn {
-            font-weight: 600;
-            color: #1a1a2e;
-            min-width: 70px;
-            font-size: 13px;
-            word-break: break-all;
-            flex: 1;
-        }
-        .asset-note-input {
-            flex: 1;
-            padding: 5px 8px;
-            border: 1px solid #e0e0e0;
-            border-radius: 6px;
-            font-size: 12px;
-            min-width: 60px;
-            max-width: 140px;
-        }
-        .asset-note-input:focus {
-            outline: 2px solid #4a6cf7;
-            border-color: transparent;
-        }
-        .asset-remove {
-            background: none;
-            border: none;
-            color: #ff6b6b;
-            font-size: 18px;
-            cursor: pointer;
-            padding: 0 5px;
-        }
-        .asset-remove:active {
-            transform: scale(1.2);
-        }
-        .asset-badge {
-            font-size: 9px;
-            padding: 2px 6px;
-            border-radius: 8px;
-            background: #e0e7ff;
-            color: #4a6cf7;
-            white-space: nowrap;
-        }
-
-        .action-buttons {
-            display: flex;
-            gap: 8px;
-            margin-top: 16px;
-            flex-wrap: wrap;
-        }
-        .action-buttons button {
-            flex: 1;
-            min-width: 80px;
-            padding: 12px;
-            border: none;
-            border-radius: 10px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .action-buttons button:active {
-            transform: scale(0.97);
-        }
-        .btn-email { background: #4a6cf7; color: white; }
-        .btn-save { background: #34c759; color: white; }
-        .btn-export { background: #f7a84a; color: white; }
-        .btn-clear { background: #ff6b6b; color: white; }
-
-        #status-msg {
-            margin: 10px 0;
-            padding: 10px 14px;
-            border-radius: 8px;
-            display: none;
-            font-size: 13px;
-        }
-        .empty-state {
-            text-align: center;
-            padding: 40px 20px;
-            color: #999;
-            font-size: 14px;
-        }
-
-        @media (max-width: 480px) {
-            .asset-item { flex-wrap: wrap; }
-            .asset-sn { width: 100%; font-size: 13px; }
-            .asset-note-input { flex: 1; min-width: 80px; }
-            .action-buttons button { min-width: 70px; font-size: 12px; padding: 10px; }
-            .barcode-type-selector label { font-size: 11px; padding: 2px 6px; }
-        }
-    </style>
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 500; font-size: 0.75rem; text-transform: uppercase; }
+  tr.dup-row td { color: var(--warn); }
+  .del-btn {
+    background: none;
+    border: none;
+    color: var(--danger);
+    font-size: 1.1rem;
+    padding: 0 6px;
+    flex: none;
+    min-width: unset;
+  }
+  .empty-state {
+    text-align: center;
+    color: var(--muted);
+    padding: 20px 0;
+    font-size: 0.85rem;
+  }
+  .count-badge {
+    display: inline-block;
+    background: var(--accent);
+    color: #04240f;
+    border-radius: 999px;
+    padding: 2px 10px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    margin-left: 6px;
+  }
+  details summary {
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 0.8rem;
+  }
+  details p, details ul {
+    font-size: 0.8rem;
+    color: var(--muted);
+    line-height: 1.4;
+  }
+  #reader video { object-fit: cover; }
+</style>
 </head>
 <body>
 
-    <h1>📱 Asset Scanner</h1>
+<header>
+  <h1>Serial Number Scanner</h1>
+  <p>Scan device barcodes, build a list, export to CSV</p>
+</header>
 
-    <button class="scan-btn" id="scanBtn">📷 Scan Barcode/QR</button>
+<main>
 
-    <!-- Full Screen Scanner Overlay -->
-    <div id="scanner-overlay">
-        <video id="scanner-video" autoplay playsinline></video>
-        <div id="scan-overlay-box"></div>
-        <div id="scan-status-overlay">🔍 Aim at barcode</div>
-        <div id="scan-result-preview"></div>
-        
-        <button class="btn-close-scan" id="closeScannerBtn">✕</button>
-        
-        <div class="scanner-controls">
-            <button class="btn-flash-scan" id="flashBtn">💡 Flash</button>
-            <button class="btn-manual-scan" id="manualScanBtn">✏️ Manual</button>
-            <button class="btn-stop-scan" id="stopScanBtn">⏹ Stop</button>
-        </div>
+  <div class="card">
+    <label for="sessionLabel">Batch / location label (optional, applied to new scans)</label>
+    <input type="text" id="sessionLabel" placeholder="e.g. Warehouse A - Rack 3">
+  </div>
+
+  <div class="card">
+    <div id="reader"></div>
+    <div class="btn-row">
+      <button id="startBtn" class="btn-primary">Start Camera</button>
+      <button id="stopBtn" class="btn-secondary" disabled>Stop Camera</button>
     </div>
+    <div id="status"></div>
+  </div>
 
-    <!-- Barcode Type Selector -->
-    <div class="barcode-type-selector">
-        <strong style="font-size:12px;margin-right:4px;">Types:</strong>
-        <label><input type="checkbox" value="code_128" checked> Code128</label>
-        <label><input type="checkbox" value="code_39" checked> Code39</label>
-        <label><input type="checkbox" value="ean" checked> EAN/UPC</label>
-        <label><input type="checkbox" value="code_93"> Code93</label>
-        <label><input type="checkbox" value="codabar"> Codabar</label>
-        <label><input type="checkbox" value="qr" checked> QR</label>
+  <div class="card">
+    <label for="manualInput">Manual entry (if a barcode won't scan)</label>
+    <div style="display:flex; gap:8px;">
+      <input type="text" id="manualInput" placeholder="Type serial number">
+      <button id="manualAddBtn" class="btn-outline" style="flex: none; min-width: 70px;">Add</button>
     </div>
+  </div>
 
-    <div class="controls">
-        <button id="manualInputBtn">✏️ Manual Entry</button>
-        <button id="clearFormatBtn">🔄 Reset Settings</button>
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+      <strong>Captured list <span class="count-badge" id="countBadge">0</span></strong>
     </div>
-
-    <div id="status-msg"></div>
-
-    <div class="list-header">
-        <h2>📦 Assets (<span id="count">0</span>)</h2>
+    <div id="listContainer">
+      <div class="empty-state">No items scanned yet</div>
     </div>
-
-    <div id="assetList">
-        <div class="empty-state">No assets scanned yet.<br>Tap "Scan Barcode/QR" to start.</div>
+    <div class="btn-row">
+      <button id="exportBtn" class="btn-primary">Export CSV</button>
+      <button id="clearBtn" class="btn-danger">Clear All</button>
     </div>
+  </div>
 
-    <div class="action-buttons">
-        <button class="btn-email" id="emailBtn">📧 Email</button>
-        <button class="btn-save" id="saveBtn">💾 Save CSV</button>
-        <button class="btn-export" id="exportBtn">📋 Copy</button>
-        <button class="btn-clear" id="clearBtn">🗑 Clear</button>
-    </div>
+  <details class="card">
+    <summary>How this works / troubleshooting</summary>
+    <p>Point your camera at a barcode. When it's recognized, it's added to the list below with a timestamp and beep/vibration confirmation. Duplicate codes are still added but highlighted in orange so you can spot repeats.</p>
+    <p>Your list is saved on this device only (browser local storage) so it survives an accidental refresh, until you tap "Clear All".</p>
+    <p><strong>Camera not starting?</strong> Browsers only allow camera access on secure pages (HTTPS) or when opened from <code>localhost</code>. If the camera won't start, use the manual entry field instead, or open this file from a properly HTTPS-hosted location.</p>
+  </details>
 
-    <!-- Load QuaggaJS -->
-    <script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
-    
-    <script>
-        // ===== STATE =====
-        let assets = [];
-        let isScanning = false;
-        let isFlashOn = false;
-        let lastScanned = '';
-        let scanCooldown = false;
-        let scanAttempts = 0;
-        let currentStream = null;
+</main>
 
-        // DOM refs
-        const scannerOverlay = document.getElementById('scanner-overlay');
-        const video = document.getElementById('scanner-video');
-        const scanBtn = document.getElementById('scanBtn');
-        const stopScanBtn = document.getElementById('stopScanBtn');
-        const closeScannerBtn = document.getElementById('closeScannerBtn');
-        const manualInputBtn = document.getElementById('manualInputBtn');
-        const manualScanBtn = document.getElementById('manualScanBtn');
-        const flashBtn = document.getElementById('flashBtn');
-        const assetList = document.getElementById('assetList');
-        const count = document.getElementById('count');
-        const statusMsg = document.getElementById('status-msg');
-        const scanStatus = document.getElementById('scan-status-overlay');
-        const scanResultPreview = document.getElementById('scan-result-preview');
-        const clearFormatBtn = document.getElementById('clearFormatBtn');
+<script>
+(function () {
+  const STORAGE_KEY = "serialScannerItems";
+  let items = [];
+  let html5QrCode = null;
+  let scanning = false;
+  let lastCode = null;
+  let lastCodeTime = 0;
+  const DEBOUNCE_MS = 2500;
 
-        // ===== LOAD SAVED DATA =====
-        function loadAssets() {
-            try {
-                const saved = localStorage.getItem('assets_v2');
-                if (saved) {
-                    assets = JSON.parse(saved);
-                    renderAssets();
-                }
-            } catch (e) { console.error('Load error', e); }
-        }
+  const startBtn = document.getElementById("startBtn");
+  const stopBtn = document.getElementById("stopBtn");
+  const statusEl = document.getElementById("status");
+  const listContainer = document.getElementById("listContainer");
+  const countBadge = document.getElementById("countBadge");
+  const manualInput = document.getElementById("manualInput");
+  const manualAddBtn = document.getElementById("manualAddBtn");
+  const exportBtn = document.getElementById("exportBtn");
+  const clearBtn = document.getElementById("clearBtn");
+  const sessionLabelInput = document.getElementById("sessionLabel");
 
-        function saveAssets() {
-            try {
-                localStorage.setItem('assets_v2', JSON.stringify(assets));
-            } catch (e) { console.error('Save error', e); }
-        }
+  function loadItems() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      items = raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      items = [];
+    }
+  }
 
-        // ===== RENDER =====
-        function renderAssets() {
-            if (assets.length === 0) {
-                assetList.innerHTML = `<div class="empty-state">No assets scanned yet.<br>Tap "Scan Barcode/QR" to start.</div>`;
-                count.textContent = '0';
-                return;
-            }
+  function saveItems() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    } catch (e) { /* storage unavailable, continue in-memory */ }
+  }
 
-            let html = '';
-            assets.forEach((asset, index) => {
-                const badge = asset.type ? `<span class="asset-badge">${asset.type}</span>` : '';
-                html += `
-                    <div class="asset-item">
-                        <span class="asset-sn">${escapeHtml(asset.sn)} ${badge}</span>
-                        <input class="asset-note-input" type="text" 
-                               placeholder="Note..." 
-                               value="${escapeHtml(asset.note || '')}"
-                               data-index="${index}"
-                               onchange="updateNote(${index}, this.value)">
-                        <button class="asset-remove" onclick="removeAsset(${index})">✕</button>
-                    </div>
-                `;
-            });
-            assetList.innerHTML = html;
-            count.textContent = assets.length;
-            saveAssets();
-        }
+  function beep() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.12);
+    } catch (e) { /* audio not available */ }
+  }
 
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
+  function vibrate() {
+    if (navigator.vibrate) navigator.vibrate(80);
+  }
 
-        window.updateNote = function(index, value) {
-            if (index >= 0 && index < assets.length) {
-                assets[index].note = value.trim();
-                saveAssets();
-            }
-        };
+  function setStatus(msg, cls) {
+    statusEl.textContent = msg;
+    statusEl.className = cls || "";
+  }
 
-        window.removeAsset = function(index) {
-            if (confirm('Remove this asset?')) {
-                assets.splice(index, 1);
-                renderAssets();
-                showStatus('Asset removed', 'success');
-            }
-        };
+  function isDuplicate(code) {
+    return items.some(it => it.code === code);
+  }
 
-        // ===== ADD ASSET =====
-        function addAsset(sn, type = 'barcode') {
-            sn = sn.trim();
-            if (!sn) return false;
+  function addItem(code, format) {
+    const now = new Date();
+    const dup = isDuplicate(code);
+    const entry = {
+      code: code,
+      format: format || "manual",
+      label: sessionLabelInput.value.trim(),
+      time: now.toISOString(),
+      timeDisplay: now.toLocaleString(),
+      dup: dup
+    };
+    items.unshift(entry);
+    saveItems();
+    render();
+    if (dup) {
+      setStatus("Added (duplicate of an earlier scan): " + code, "dup");
+    } else {
+      setStatus("Added: " + code, "ok");
+    }
+  }
 
-            // Check for duplicate
-            if (assets.some(a => a.sn.toLowerCase() === sn.toLowerCase())) {
-                showStatus(`⚠️ "${sn}" already in list`, 'warning');
-                return false;
-            }
+  function removeItem(index) {
+    items.splice(index, 1);
+    saveItems();
+    render();
+  }
 
-            assets.push({ 
-                sn: sn, 
-                note: '', 
-                type: type, 
-                timestamp: new Date().toISOString() 
-            });
-            renderAssets();
-            showStatus(`✅ Added: ${sn}`, 'success');
-            
-            if (navigator.vibrate) navigator.vibrate(50);
-            return true;
-        }
+  function render() {
+    countBadge.textContent = items.length;
+    if (items.length === 0) {
+      listContainer.innerHTML = '<div class="empty-state">No items scanned yet</div>';
+      return;
+    }
+    let html = '<table><thead><tr><th>#</th><th>Code</th><th>Format</th><th>Time</th><th></th></tr></thead><tbody>';
+    items.forEach((it, idx) => {
+      const rowClass = it.dup ? "dup-row" : "";
+      html += `<tr class="${rowClass}">
+        <td>${items.length - idx}</td>
+        <td>${escapeHtml(it.code)}</td>
+        <td>${escapeHtml(it.format)}</td>
+        <td>${escapeHtml(it.timeDisplay)}</td>
+        <td><button class="del-btn" data-idx="${idx}" title="Delete">&times;</button></td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    listContainer.innerHTML = html;
+    listContainer.querySelectorAll(".del-btn").forEach(btn => {
+      btn.addEventListener("click", () => removeItem(parseInt(btn.getAttribute("data-idx"), 10)));
+    });
+  }
 
-        // ===== GET SELECTED FORMATS =====
-        function getSelectedFormats() {
-            const checkboxes = document.querySelectorAll('.barcode-type-selector input[type="checkbox"]:checked');
-            const types = [];
-            checkboxes.forEach(cb => types.push(cb.value));
-            return types;
-        }
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, s => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    }[s]));
+  }
 
-        // ===== BUILD QUAGGA CONFIG =====
-        function buildQuaggaConfig() {
-            const selected = getSelectedFormats();
-            if (selected.length === 0) {
-                showStatus('⚠️ Select at least one barcode type', 'warning');
-                return null;
-            }
+  function onScanSuccess(decodedText, decodedResult) {
+    const now = Date.now();
+    if (decodedText === lastCode && (now - lastCodeTime) < DEBOUNCE_MS) {
+      return; // ignore rapid repeat reads of the same code
+    }
+    lastCode = decodedText;
+    lastCodeTime = now;
+    const format = (decodedResult && decodedResult.result && decodedResult.result.format &&
+      decodedResult.result.format.formatName) || "barcode";
+    beep();
+    vibrate();
+    addItem(decodedText, format);
+  }
 
-            const readers = [];
-            selected.forEach(type => {
-                if (type === 'qr') {
-                    readers.push({ format: 'qr_code', config: {} });
-                } else if (type === 'ean') {
-                    readers.push(
-                        { format: 'ean_8', config: {} },
-                        { format: 'ean_13', config: {} },
-                        { format: 'upc_e', config: {} },
-                        { format: 'upc_a', config: {} }
-                    );
-                } else if (type === 'code_128') {
-                    readers.push({ format: 'code_128', config: {} });
-                } else if (type === 'code_39') {
-                    readers.push({ format: 'code_39', config: {} });
-                } else if (type === 'code_93') {
-                    readers.push({ format: 'code_93', config: {} });
-                } else if (type === 'codabar') {
-                    readers.push({ format: 'codabar', config: {} });
-                }
-            });
+  function onScanFailure() {
+    // called continuously while no code is in frame; ignore
+  }
 
-            return {
-                inputStream: {
-                    name: "Live",
-                    type: "LiveStream",
-                    target: video,
-                    constraints: {
-                        facingMode: "environment",
-                        width: { ideal: 640 },
-                        height: { ideal: 480 },
-                        aspectRatio: { ideal: 4/3 }
-                    }
-                },
-                decoder: {
-                    readers: readers,
-                    multiple: false
-                },
-                locate: true,
-                numOfWorkers: 2,
-                frequency: 10
-            };
-        }
+  async function startScanning() {
+    if (scanning) return;
+    setStatus("Starting camera…");
+    html5QrCode = new Html5Qrcode("reader");
+    const config = { fps: 10, qrbox: { width: 250, height: 150 } };
+    try {
+      await html5QrCode.start(
+        { facingMode: "environment" },
+        config,
+        onScanSuccess,
+        onScanFailure
+      );
+      scanning = true;
+      startBtn.disabled = true;
+      stopBtn.disabled = false;
+      setStatus("Camera active — point at a barcode", "ok");
+    } catch (err) {
+      setStatus("Could not start camera: " + err + " (try manual entry, or open this page over HTTPS)", "dup");
+    }
+  }
 
-        // ===== START SCANNING =====
-        function startScanning() {
-            if (isScanning) return;
+  async function stopScanning() {
+    if (!scanning || !html5QrCode) return;
+    try {
+      await html5QrCode.stop();
+      await html5QrCode.clear();
+    } catch (e) { /* ignore */ }
+    scanning = false;
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+    setStatus("Camera stopped");
+  }
 
-            const config = buildQuaggaConfig();
-            if (!config) return;
+  function exportCsv() {
+    if (items.length === 0) {
+      setStatus("Nothing to export yet", "dup");
+      return;
+    }
+    const header = ["#", "Code", "Format", "Label", "Timestamp"];
+    const rows = items.slice().reverse().map((it, idx) => [
+      idx + 1, it.code, it.format, it.label || "", it.time
+    ]);
+    let csv = header.join(",") + "\n";
+    rows.forEach(r => {
+      csv += r.map(field => {
+        const s = String(field).replace(/"/g, '""');
+        return /[",\n]/.test(s) ? `"${s}"` : s;
+      }).join(",") + "\n";
+    });
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const ts = new Date().toISOString().replace(/[:.]/g, "-");
+    a.href = url;
+    a.download = `serial_numbers_${ts}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
 
-            // Show overlay
-            scannerOverlay.classList.add('active');
-            scanStatus.textContent = '🔍 Initializing...';
-            scanResultPreview.style.display = 'none';
-            
-            // Reset state
-            lastScanned = '';
-            scanCooldown = false;
-            scanAttempts = 0;
+  startBtn.addEventListener("click", startScanning);
+  stopBtn.addEventListener("click", stopScanning);
+  exportBtn.addEventListener("click", exportCsv);
+  clearBtn.addEventListener("click", () => {
+    if (items.length && !confirm("Clear all " + items.length + " captured items? This cannot be undone.")) return;
+    items = [];
+    saveItems();
+    render();
+    setStatus("List cleared");
+  });
+  manualAddBtn.addEventListener("click", () => {
+    const val = manualInput.value.trim();
+    if (!val) return;
+    addItem(val, "manual");
+    manualInput.value = "";
+    manualInput.focus();
+  });
+  manualInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") manualAddBtn.click();
+  });
 
-            // Initialize Quagga
-            Quagga.init(config, function(err) {
-                if (err) {
-                    console.error('Quagga init error:', err);
-                    showStatus('❌ Camera error: ' + err.message, 'error');
-                    closeScanner();
-                    return;
-                }
+  loadItems();
+  render();
+})();
+</script>
 
-                Quagga.start();
-                isScanning = true;
-                scanBtn.disabled = true;
-                scanStatus.textContent = '🔍 Scanning...';
-
-                // Handle detection
-                Quagga.onDetected(function(result) {
-                    if (scanCooldown) return;
-                    
-                    const code = result.codeResult.code;
-                    const format = result.codeResult.format || 'barcode';
-                    
-                    // Map format
-                    const formatMap = {
-                        'ean_13': 'EAN-13', 'ean_8': 'EAN-8',
-                        'upc_a': 'UPC-A', 'upc_e': 'UPC-E',
-                        'code_128': 'Code128', 'code_39': 'Code39',
-                        'code_93': 'Code93', 'codabar': 'Codabar',
-                        'qr_code': 'QR'
-                    };
-                    const displayFormat = formatMap[format] || format.toUpperCase();
-
-                    // Show preview
-                    scanResultPreview.textContent = `✅ ${code} (${displayFormat})`;
-                    scanResultPreview.style.display = 'block';
-                    scanResultPreview.style.color = '#4ade80';
-
-                    if (addAsset(code, displayFormat)) {
-                        scanCooldown = true;
-                        setTimeout(() => {
-                            scanCooldown = false;
-                            scanResultPreview.style.display = 'none';
-                        }, 1000);
-                    }
-                });
-
-                // Handle process (for debugging)
-                Quagga.onProcessed(function(result) {
-                    // Optional
-                });
-            });
-        }
-
-        // ===== CLOSE SCANNER =====
-        function closeScanner() {
-            isScanning = false;
-            
-            try {
-                Quagga.stop();
-                Quagga.offDetected();
-                Quagga.offProcessed();
-            } catch (e) { /* silent */ }
-            
-            if (currentStream) {
-                currentStream.getTracks().forEach(track => track.stop());
-                currentStream = null;
-            }
-            
-            video.srcObject = null;
-            video.load();
-            
-            scannerOverlay.classList.remove('active');
-            scanBtn.disabled = false;
-            scanBtn.textContent = '📷 Scan Barcode/QR';
-            isFlashOn = false;
-        }
-
-        // ===== FLASH TOGGLE =====
-        function toggleFlash() {
-            isFlashOn = !isFlashOn;
-            
-            // Try to get video track
-            if (video.srcObject) {
-                const track = video.srcObject.getVideoTracks()[0];
-                if (track && track.getCapabilities && track.getCapabilities().torch) {
-                    try {
-                        track.applyConstraints({
-                            advanced: [{ torch: isFlashOn }]
-                        });
-                        flashBtn.textContent = isFlashOn ? '💡 On' : '💡 Flash';
-                    } catch (e) {
-                        showStatus('⚠️ Flash not supported on this device', 'warning');
-                        isFlashOn = false;
-                    }
-                } else {
-                    showStatus('⚠️ Flash not available', 'warning');
-                    isFlashOn = false;
-                }
-            }
-        }
-
-        // ===== MANUAL ENTRY =====
-        function manualEntry() {
-            closeScanner();
-            const sn = prompt('Enter Serial Number / Asset ID:');
-            if (sn !== null && sn.trim() !== '') {
-                addAsset(sn.trim(), 'Manual');
-            }
-        }
-
-        // ===== EXPORT FUNCTIONS =====
-        function getCSV() {
-            if (assets.length === 0) {
-                showStatus('⚠️ No assets to export', 'warning');
-                return null;
-            }
-            let csv = 'Serial Number,Note,Type,Timestamp\n';
-            assets.forEach(a => {
-                csv += `"${a.sn}","${(a.note || '').replace(/"/g, '""')}","${a.type || ''}","${a.timestamp || ''}"\n`;
-            });
-            return csv;
-        }
-
-        function getTextList() {
-            if (assets.length === 0) {
-                showStatus('⚠️ No assets to export', 'warning');
-                return null;
-            }
-            let text = 'ASSET REGISTRY\n';
-            text += '='.repeat(50) + '\n\n';
-            assets.forEach((a, i) => {
-                text += `${i+1}. ${a.sn}`;
-                if (a.note) text += ` (${a.note})`;
-                if (a.type) text += ` [${a.type}]`;
-                text += '\n';
-            });
-            text += '\n' + '='.repeat(50) + '\n';
-            text += `Total: ${assets.length} assets`;
-            return text;
-        }
-
-        function emailList() {
-            const text = getTextList();
-            if (!text) return;
-            const subject = encodeURIComponent('Asset Registry List');
-            const body = encodeURIComponent(text);
-            window.location.href = `mailto:?subject=${subject}&body=${body}`;
-            showStatus('📧 Email client opened', 'success');
-        }
-
-        function saveToDevice() {
-            const csv = getCSV();
-            if (!csv) return;
-            try {
-                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-                const link = document.createElement('a');
-                const url = URL.createObjectURL(blob);
-                link.href = url;
-                link.download = `assets_${new Date().toISOString().slice(0,10)}.csv`;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                URL.revokeObjectURL(url);
-                showStatus('💾 File downloaded', 'success');
-            } catch (err) {
-                showStatus('❌ Download failed', 'error');
-                console.error(err);
-            }
-        }
-
-        function copyCSV() {
-            const csv = getCSV();
-            if (!csv) return;
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(csv).then(() => {
-                    showStatus('📋 Copied to clipboard!', 'success');
-                }).catch(() => fallbackCopy(csv));
-            } else {
-                fallbackCopy(csv);
-            }
-        }
-
-        function fallbackCopy(text) {
-            const textarea = document.createElement('textarea');
-            textarea.value = text;
-            document.body.appendChild(textarea);
-            textarea.select();
-            try {
-                document.execCommand('copy');
-                showStatus('📋 Copied to clipboard!', 'success');
-            } catch (err) {
-                showStatus('❌ Copy failed', 'error');
-            }
-            document.body.removeChild(textarea);
-        }
-
-        function clearAll() {
-            if (assets.length === 0) {
-                showStatus('⚠️ No assets to clear', 'warning');
-                return;
-            }
-            if (confirm('Delete ALL assets?')) {
-                assets = [];
-                renderAssets();
-                showStatus('🗑 All cleared', 'success');
-            }
-        }
-
-        function resetSettings() {
-            document.querySelectorAll('.barcode-type-selector input[type="checkbox"]').forEach(cb => {
-                cb.checked = ['code_128', 'code_39', 'ean', 'qr'].includes(cb.value);
-            });
-            showStatus('🔄 Settings reset to defaults', 'success');
-        }
-
-        // ===== STATUS MESSAGES =====
-        function showStatus(msg, type = 'success') {
-            statusMsg.textContent = msg;
-            statusMsg.style.display = 'block';
-            statusMsg.style.background = type === 'error' ? '#ffebee' :
-                                         type === 'warning' ? '#fff3e0' : '#e8f5e9';
-            statusMsg.style.color = type === 'error' ? '#c62828' :
-                                    type === 'warning' ? '#e65100' : '#2e7d32';
-            clearTimeout(statusMsg._timeout);
-            statusMsg._timeout = setTimeout(() => {
-                statusMsg.style.display = 'none';
-            }, 4000);
-        }
-
-        // ===== EVENT LISTENERS =====
-        scanBtn.addEventListener('click', startScanning);
-        stopScanBtn.addEventListener('click', closeScanner);
-        closeScannerBtn.addEventListener('click', closeScanner);
-        manualInputBtn.addEventListener('click', manualEntry);
-        manualScanBtn.addEventListener('click', manualEntry);
-        flashBtn.addEventListener('click', toggleFlash);
-        clearFormatBtn.addEventListener('click', resetSettings);
-        document.getElementById('emailBtn').addEventListener('click', emailList);
-        document.getElementById('saveBtn').addEventListener('click', saveToDevice);
-        document.getElementById('exportBtn').addEventListener('click', copyCSV);
-        document.getElementById('clearBtn').addEventListener('click', clearAll);
-
-        // Close scanner on back button (browser)
-        window.addEventListener('popstate', () => {
-            if (scannerOverlay.classList.contains('active')) {
-                closeScanner();
-            }
-        });
-
-        // ===== INIT =====
-        loadAssets();
-        console.log('📱 Asset Scanner ready!');
-        console.log(`📦 ${assets.length} assets loaded`);
-    </script>
 </body>
 </html>
