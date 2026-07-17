@@ -477,6 +477,13 @@
     setStatus("Starting camera…");
     html5QrCode = new Html5Qrcode("reader");
     const config = { fps: 10, qrbox: { width: 250, height: 150 } };
+    // Show the camera container BEFORE starting the camera. html5-qrcode measures
+    // the container's size when it attaches the video feed — if the container is
+    // still display:none at that moment, the video ends up with no usable size
+    // (the collapsed "thin black bar" bug).
+    readerWrap.classList.add("visible");
+    startBtn.style.display = "none";
+    stopBtn.style.display = "";
     try {
       await html5QrCode.start(
         { facingMode: "environment" },
@@ -485,13 +492,14 @@
         onScanFailure
       );
       scanning = true;
-      readerWrap.classList.add("visible");
-      startBtn.style.display = "none";
-      stopBtn.style.display = "";
       scanLine.classList.add("active");
       setStatus("Camera active — point at a barcode", "ok");
       setupCameraControls();
     } catch (err) {
+      // Revert the UI back to idle since the camera failed to start.
+      readerWrap.classList.remove("visible");
+      startBtn.style.display = "";
+      stopBtn.style.display = "none";
       setStatus("Could not start camera: " + err + " (try manual entry, or open this page over HTTPS)", "dup");
     }
   }
