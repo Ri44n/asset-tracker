@@ -72,11 +72,13 @@
     font-size: 0.95rem;
   }
   #readerWrap {
+    display: none;
     position: relative;
     width: 100%;
     border-radius: 10px;
     overflow: hidden;
   }
+  #readerWrap.visible { display: block; }
   #reader {
     width: 100%;
     border-radius: 10px;
@@ -274,8 +276,8 @@
       <div class="focus-ripple" id="focusRipple"></div>
     </div>
     <div class="btn-row">
-      <button id="startBtn" class="btn-primary">Start Scanning</button>
-      <button id="stopBtn" class="btn-secondary" disabled>Stop Scanning</button>
+      <button id="startBtn" class="btn-primary">Scan</button>
+      <button id="stopBtn" class="btn-secondary" style="display:none;">Stop Scanning</button>
     </div>
     <div class="camera-controls" id="cameraControls">
       <div class="control-row" id="zoomRow" style="display:none;">
@@ -321,8 +323,7 @@
   let items = [];
   let html5QrCode = null;
   let scanning = false;
-  let lastAcceptTime = 0;
-  const COOLDOWN_MS = 1000;
+  let scanLocked = false;
 
   const startBtn = document.getElementById("startBtn");
   const stopBtn = document.getElementById("stopBtn");
@@ -455,17 +456,16 @@
     }[s]));
   }
 
-  function onScanSuccess(decodedText, decodedResult) {
-    const now = Date.now();
-    if (now - lastAcceptTime < COOLDOWN_MS) {
-      return; // still cooling down after the last accepted scan
-    }
-    lastAcceptTime = now;
+  async function onScanSuccess(decodedText, decodedResult) {
+    if (scanLocked) return; // already handling a scan / closing the camera
+    scanLocked = true;
     const format = (decodedResult && decodedResult.result && decodedResult.result.format &&
       decodedResult.result.format.formatName) || "barcode";
     beep();
     vibrate();
     addItem(decodedText, format);
+    await stopScanning(/* silent = */ true);
+    scanLocked = false;
   }
 
   function onScanFailure() {
@@ -485,8 +485,9 @@
         onScanFailure
       );
       scanning = true;
-      startBtn.disabled = true;
-      stopBtn.disabled = false;
+      readerWrap.classList.add("visible");
+      startBtn.style.display = "none";
+      stopBtn.style.display = "";
       scanLine.classList.add("active");
       setStatus("Camera active — point at a barcode", "ok");
       setupCameraControls();
@@ -495,15 +496,16 @@
     }
   }
 
-  async function stopScanning() {
+  async function stopScanning(silent) {
     if (!scanning || !html5QrCode) return;
     try {
       await html5QrCode.stop();
       await html5QrCode.clear();
     } catch (e) { /* ignore */ }
     scanning = false;
-    startBtn.disabled = false;
-    stopBtn.disabled = true;
+    readerWrap.classList.remove("visible");
+    startBtn.style.display = "";
+    stopBtn.style.display = "none";
     scanLine.classList.remove("active");
     cameraControls.classList.remove("visible");
     zoomRow.style.display = "none";
@@ -511,7 +513,7 @@
     focusNote.textContent = "";
     torchOn = false;
     focusCapable = false;
-    setStatus("Camera stopped");
+    if (!silent) setStatus("Camera stopped");
   }
 
   function setupCameraControls() {
